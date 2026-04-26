@@ -21,22 +21,23 @@
 
 <table>
 <tr>
-<td align="center"><b>主界面</b></td>
+<td align="center"><b>Cowork 面板</b></td>
 <td align="center"><b>设置页面</b></td>
 </tr>
 <tr>
-<td><img src="README.assets/screenshot-main.png" alt="主界面" width="400"/></td>
+<td><img src="README.assets/screenshot-cowork.png" alt="主界面" width="400"/></td>
 <td><img src="README.assets/screenshot-settings.png" alt="设置页面" width="400"/></td>
 </tr>
 <tr>
 <td align="center"><b>第三方推理配置</b></td>
-<td align="center"><b>Cowork 面板</b></td>
+<td align="center"><b>Code 面板</b></td>
 </tr>
 <tr>
 <td><img src="README.assets/screenshot-3p.png" alt="第三方推理配置" width="400"/></td>
-<td><img src="README.assets/screenshot-cowork.png" alt="Cowork 面板" width="400"/></td>
+<td><img src="README.assets/screenshot-code.png" alt="Cowork 面板" width="400"/></td>
 </tr>
 </table>
+
 
 > 截图对应 Claude Desktop v1.3883.0.0 + 本项目补丁。实际界面可能因版本更新略有差异。
 
