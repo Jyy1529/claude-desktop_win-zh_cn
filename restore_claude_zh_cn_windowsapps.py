@@ -19,6 +19,7 @@ from pathlib import Path
 BACKUP_BASE = Path(os.environ["LOCALAPPDATA"]) / "Claude-zh-CN-official-backup"
 BACKUP_JSON_ONLY = BACKUP_BASE / "json-only"
 CONFIG_PATH = Path(os.environ["APPDATA"]) / "Claude-3p" / "config.json"
+FONT_KEY = "claudeZhCnFont"
 
 
 def find_claude_package() -> Path | None:
@@ -47,7 +48,7 @@ def restore_from(backup_root: Path, app_resources: Path) -> int:
 
 
 def remove_locale() -> bool:
-    """Remove locale=zh-CN from user config."""
+    """Remove locale=zh-CN and zh-CN font mirror from user config."""
     if not CONFIG_PATH.exists():
         return False
 
@@ -56,10 +57,17 @@ def remove_locale() -> bool:
     except (json.JSONDecodeError, OSError):
         return False
 
-    if "locale" not in data:
+    changed = False
+    if "locale" in data:
+        del data["locale"]
+        changed = True
+    if FONT_KEY in data:
+        del data[FONT_KEY]
+        changed = True
+
+    if not changed:
         return False
 
-    del data["locale"]
     CONFIG_PATH.write_text(
         json.dumps(data, ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",

@@ -156,7 +156,7 @@ function Invoke-Install {
   }
 
   Write-Host ''
-  Write-Info '正在执行 chunk 界面标签 patch...'
+  Write-Info '正在执行 chunk 界面标签和字体自定义 patch...'
   Write-Host ''
   & $python.Source "$scriptDir\patch_chunks_zh_cn.py" --app-dir "$appDir"
 
@@ -166,8 +166,9 @@ function Invoke-Install {
   Write-Info '下一步：'
   Write-Info '  1. 打开 Claude Desktop'
   Write-Info '  2. 界面应该已经是中文'
+  Write-Info '  3. 可在设置 / 外观区域使用中文字体设置'
   Write-Info ''
-  Write-Warn '注意: Configure Third-Party Inference 页面不在汉化范围内'
+  Write-Warn '注意: 部分第三方推理配置页面文案来自 JS chunk，已尽量汉化，仍可能有少量英文残留'
   Write-Warn '注意: Claude 更新版本后需要重新运行此脚本'
 }
 

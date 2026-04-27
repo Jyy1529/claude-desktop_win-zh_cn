@@ -21,7 +21,7 @@ if (-not $python) {
 Get-Process -Name claude -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-Write-Host 'WindowsApps zh-CN patch (JSON + chunk labels)'
+Write-Host 'WindowsApps zh-CN patch (JSON + chunk labels + font customizer)'
 Write-Host ''
 
 Write-Host 'Step 1: JSON resources...'
@@ -35,10 +35,11 @@ if ($LASTEXITCODE -ne 0) {
 }
 
 Write-Host ''
-Write-Host 'Step 2: Chunk UI labels...'
+Write-Host 'Step 2: Chunk UI labels and font customizer...'
 & $python.Source "$scriptDir\patch_chunks_zh_cn.py"
 
 Write-Host ''
 Write-Host 'Patch complete. Restart Claude Desktop to see Chinese UI.' -ForegroundColor Green
+Write-Host 'Font customizer will appear in the existing Settings/Appearance area when available.' -ForegroundColor Green
 
 Read-Host 'Press Enter to exit'
