@@ -45,6 +45,29 @@ if (-not $python) {
 # ── 自动检测 Claude 包路径 ────────────────────────────────
 $scriptDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 
+function Resolve-ClaudeAppPath {
+  param([string]$InputPath)
+
+  if ([string]::IsNullOrWhiteSpace($InputPath)) {
+    return $null
+  }
+
+  try {
+    $resolved = [System.IO.Path]::GetFullPath($InputPath.Trim())
+  } catch {
+    return $null
+  }
+
+  $app = $resolved.TrimEnd('\\/')
+  $res = Join-Path $app 'resources'
+  $desktop = Join-Path $res 'en-US.json'
+  if ((Test-Path $app) -and (Test-Path $desktop)) {
+    return @{ AppDir = $app; ResourcesDir = $res; PackageName = ('manual:' + $app) }
+  }
+
+  return $null
+}
+
 function Find-ClaudePackage {
   $base = 'C:\Program Files\WindowsApps'
   $dirs = Get-ChildItem $base -Directory -Filter 'Claude_*_x64__*' -ErrorAction SilentlyContinue |
@@ -59,11 +82,61 @@ function Find-ClaudePackage {
   return $null
 }
 
-$pkg = Find-ClaudePackage
+function Resolve-ClaudePackage {
+  $detected = Find-ClaudePackage
+  if ($detected) { return $detected }
+
+  Write-Host ''
+  Write-Warn '未检测到 WindowsApps 安装。'
+  Write-Info '如果你使用的是解压后直接运行的 Claude，请手动输入 Claude app 目录。'
+  Write-Info '示例: D:\Claude\app'
+  Write-Host ''
+
+  while ($true) {
+    $inputPath = Read-Host '  请输入 Claude app 目录（留空则退出）'
+    if ([string]::IsNullOrWhiteSpace($inputPath)) {
+      return $null
+    }
+
+    $manual = Resolve-ClaudeAppPath $inputPath
+    if ($manual) { return $manual }
+
+    Write-Warn '该目录下未找到 app\resources\en-US.json，请确认输入的是 Claude 的 app 目录。'
+  }
+}
+
+function Set-ClaudePackageManual {
+  Write-Host ''
+  Write-Info '手动指定 Claude app 目录'
+  Write-Info '示例: D:\Claude\app'
+  Write-Host ''
+
+  while ($true) {
+    $inputPath = Read-Host '  请输入 Claude app 目录（留空则取消）'
+    if ([string]::IsNullOrWhiteSpace($inputPath)) {
+      Write-Info '已取消。'
+      return $false
+    }
+
+    $manual = Resolve-ClaudeAppPath $inputPath
+    if ($manual) {
+      $script:pkg = $manual
+      $script:appDir = $manual.AppDir
+      $script:resDir = $manual.ResourcesDir
+      $script:pkgName = $manual.PackageName
+      Write-OK "已切换到手动路径: $appDir"
+      return $true
+    }
+
+    Write-Warn '该目录下未找到 app\resources\en-US.json，请确认输入的是 Claude 的 app 目录。'
+  }
+}
+
+$pkg = Resolve-ClaudePackage
 if (-not $pkg) {
   Write-Host ''
-  Write-Err '未找到已安装的 Claude Desktop (WindowsApps)。'
-  Write-Info '请确认已从 Microsoft Store 安装 Claude Desktop。'
+  Write-Err '未找到可用的 Claude 安装目录。'
+  Write-Info '请确认已安装 Claude Desktop，或手动提供解压运行版本的 app 目录。'
   Write-Host ''
   Read-Host '按 Enter 退出'
   exit 1
@@ -117,7 +190,7 @@ function Show-Status {
   $s = Get-PatchStatus
 
   Write-Title '当前状态'
-  Write-Info  "Claude 包: $pkgName"
+  Write-Info  "Claude 来源: $pkgName"
   Write-Info  "安装路径:  $appDir"
   Write-Host ''
 
@@ -271,7 +344,8 @@ function Show-Menu {
     Write-Host '  [1] 安装中文补丁' -ForegroundColor White
     Write-Host '  [2] 卸载中文补丁（恢复英文）' -ForegroundColor DarkGray
   }
-  Write-Host '  [3] 刷新状态' -ForegroundColor White
+  Write-Host '  [3] 手动指定 Claude app 目录' -ForegroundColor White
+  Write-Host '  [4] 刷新状态' -ForegroundColor White
   Write-Host '  [0] 退出' -ForegroundColor White
   Write-Host ''
 }
@@ -301,6 +375,12 @@ while ($true) {
       }
     }
     '3' {
+      Write-Host ''
+      $changed = Set-ClaudePackageManual
+      Write-Host ''
+      Read-Host '按 Enter 返回菜单'
+    }
+    '4' {
       # 刷新状态，直接回到菜单
     }
     '0' {
@@ -311,7 +391,7 @@ while ($true) {
     }
     default {
       Write-Host ''
-      Write-Warn '无效选择，请输入 0-3。'
+      Write-Warn '无效选择，请输入 0-4。'
       Start-Sleep -Milliseconds 800
     }
   }

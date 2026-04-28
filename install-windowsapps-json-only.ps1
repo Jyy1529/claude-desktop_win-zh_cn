@@ -1,3 +1,7 @@
+param(
+  [string]$AppDir
+)
+
 $ErrorActionPreference = 'Stop'
 
 # Admin check
@@ -25,7 +29,11 @@ Write-Host 'WindowsApps zh-CN patch (JSON + chunk labels + font customizer)'
 Write-Host ''
 
 Write-Host 'Step 1: JSON resources...'
-& $python.Source "$scriptDir\patch_windowsapps_json_only.py"
+if ($AppDir) {
+  & $python.Source "$scriptDir\patch_windowsapps_json_only.py" --app-dir "$AppDir"
+} else {
+  & $python.Source "$scriptDir\patch_windowsapps_json_only.py"
+}
 
 if ($LASTEXITCODE -ne 0) {
   Write-Host ''
@@ -36,7 +44,11 @@ if ($LASTEXITCODE -ne 0) {
 
 Write-Host ''
 Write-Host 'Step 2: Chunk UI labels and font customizer...'
-& $python.Source "$scriptDir\patch_chunks_zh_cn.py"
+if ($AppDir) {
+  & $python.Source "$scriptDir\patch_chunks_zh_cn.py" --app-dir "$AppDir"
+} else {
+  & $python.Source "$scriptDir\patch_chunks_zh_cn.py"
+}
 
 Write-Host ''
 Write-Host 'Patch complete. Restart Claude Desktop to see Chinese UI.' -ForegroundColor Green

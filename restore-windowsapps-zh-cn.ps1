@@ -1,3 +1,7 @@
+param(
+  [string]$AppDir
+)
+
 $ErrorActionPreference = 'Stop'
 
 # Admin check
@@ -24,7 +28,11 @@ Start-Sleep -Seconds 2
 Write-Host 'Restore WindowsApps zh-CN patch backup'
 Write-Host ''
 
-& $python.Source "$scriptDir\restore_claude_zh_cn_windowsapps.py"
+if ($AppDir) {
+  & $python.Source "$scriptDir\restore_claude_zh_cn_windowsapps.py" --app-dir "$AppDir"
+} else {
+  & $python.Source "$scriptDir\restore_claude_zh_cn_windowsapps.py"
+}
 
 if ($LASTEXITCODE -ne 0) {
   Write-Host ''

@@ -89,6 +89,67 @@ def test_frontend_resource_key_translations() -> None:
     assert data["puLNUJezx6"] == "固定"
     assert data["aNzS6KFyd2"] == "无衬线聊天字体"
     assert data["oZJlI1WvFj"] == "无衬线"
+    assert data["6gT5ZWvI0K"] == "模型：{model}"
+    assert data["eLHIIAgqml"] == "提供模型 ID，例如 /model claude-sonnet-4-5"
+    assert "Haiku" in data["YUXhG8b7by"] or "Sonnet" in data["YUXhG8b7by"]
+    assert "Opus" in data["R+afEr3zIZ"]
+    assert "Opus" in data["//ixi/rP/O"]
+
+
+def test_brand_and_model_names_stay_in_english() -> None:
+    frontend = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    desktop = json.loads((ROOT / "resources" / "desktop-zh-CN.json").read_text(encoding="utf-8-sig"))
+
+    assert "Claude Code" in frontend["+4sNMiL2sh"]
+    assert "GitHub" in frontend["+b6F7XjKgE"]
+    assert "Slack" in frontend["0AmHBAraPC"]
+    assert "Google Workspace" in frontend["0AmHBAraPC"]
+    assert "Chrome" in frontend["1XvgYxOFV4"]
+    assert "Claude" in frontend["+4Rjm0+q1q"]
+    assert "Claude.ai" in frontend["3CIha9zDJ/"]
+    assert "MCP" in frontend["0DZwzm8wVp"]
+    assert "Claude" in frontend["1XvgYxOFV4"]
+    assert "Claude Code" in desktop["+qat3UyOdy"]
+    assert "Claude" in desktop["CizRPROPWo"]
+    assert "Chrome" in desktop["5ASYey6oV6"]
+    assert "MCP" in desktop["uKCcuVd1Yt"]
+    assert "Claude.ai" in desktop["0vttuC3ieI"]
+
+
+def test_desktop_menu_translations() -> None:
+    data = json.loads((ROOT / "resources" / "desktop-zh-CN.json").read_text(encoding="utf-8-sig"))
+
+    assert data["EfdnINFnIz"] == "文件"
+    assert data["/PgA81GVOD"] == "编辑"
+    assert data["LCWUQ/4Fu6"] == "查看"
+    assert data["0tZLEYF8mJ"] == "开发者"
+    assert data["pWXxZASpOB"] == "帮助"
+    assert data["PW5U8NgTto"] == "打开 MCP 日志文件…"
+    assert data["uKCcuVd1Yt"] == "重新加载 MCP 配置"
+    assert data["9GRz7bC+rr"] == "管理第三方供应商…"
+    assert data["JOf7G+dCf1"] == "打开应用配置文件…"
+    assert data["K5GtyaPaw/"] == "打开开发者配置文件…"
+    assert data["RTg057HE1D"] == "显示开发者工具"
+    assert data["STqYpFr7p4"] == "显示所有开发者工具"
+
+
+def test_powershell_has_manual_app_dir_fallback() -> None:
+    content = (ROOT / "claude-zh-cn.ps1").read_text(encoding="utf-8-sig")
+    assert "function Resolve-ClaudeAppPath" in content
+    assert "function Resolve-ClaudePackage" in content
+    assert "function Set-ClaudePackageManual" in content
+    assert "请输入 Claude app 目录" in content
+    assert "manual:" in content
+    assert "[3] 手动指定 Claude app 目录" in content
+
+
+def test_noninteractive_scripts_support_app_dir() -> None:
+    install = (ROOT / "install-windowsapps-json-only.ps1").read_text(encoding="utf-8-sig")
+    restore = (ROOT / "restore-windowsapps-zh-cn.ps1").read_text(encoding="utf-8-sig")
+    assert "param(" in install and "[string]$AppDir" in install
+    assert "--app-dir \"$AppDir\"" in install
+    assert "param(" in restore and "[string]$AppDir" in restore
+    assert "--app-dir \"$AppDir\"" in restore
 
 
 def test_restore_removes_font_mirror_and_locale() -> None:
@@ -225,6 +286,10 @@ def main() -> int:
         test_font_runtime_replaces_legacy_injection,
         test_font_runtime_updates_marked_injection,
         test_frontend_resource_key_translations,
+        test_brand_and_model_names_stay_in_english,
+        test_desktop_menu_translations,
+        test_powershell_has_manual_app_dir_fallback,
+        test_noninteractive_scripts_support_app_dir,
         test_restore_removes_font_mirror_and_locale,
         test_json_patch_copies_resources_and_patches_locale_whitelist,
         test_restore_restores_json_and_chunk_backups,
