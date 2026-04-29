@@ -9,6 +9,8 @@ import tempfile
 from unittest import mock
 from pathlib import Path
 
+import best_effort_io
+
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -496,22 +498,32 @@ def test_chunk_patch_backup_copy_permission_error_is_retried() -> None:
     patch_chunks = load_module("patch_chunks_zh_cn_backup_retry", ROOT / "patch_chunks_zh_cn.py")
 
     with tempfile.TemporaryDirectory() as tmp:
+        localappdata = Path(tmp) / "localappdata"
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
         assets = Path(tmp)
         index = assets / "index-test.js"
         index.write_text("console.log('app');\n", encoding="utf-8")
 
-        backup_dst = Path(os.environ.get("LOCALAPPDATA", str(assets))) / "Claude-zh-CN-official-backup" / "chunks" / "index-test.js"
-        original_copy2 = patch_chunks.shutil.copy2
+        backup_dst = localappdata / "Claude-zh-CN-official-backup" / "chunks" / "index-test.js"
+        original_copy2 = best_effort_io.shutil.copy2
         copy_calls = {"count": 0}
 
         def flaky_copy2(src, dst, *args, **kwargs):
-            if Path(dst).name == backup_dst.name and copy_calls["count"] == 0:
+            if Path(dst) == backup_dst and copy_calls["count"] == 0:
                 copy_calls["count"] += 1
                 raise PermissionError("denied")
             return original_copy2(src, dst, *args, **kwargs)
 
-        with mock.patch.object(patch_chunks.shutil, "copy2", flaky_copy2):
-            patch_chunks.backup_file(index, assets)
+        try:
+            patch_chunks.BACKUP_ROOT = backup_dst.parent
+            with mock.patch.object(best_effort_io.shutil, "copy2", flaky_copy2):
+                patch_chunks.backup_file(index, assets)
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
 
     assert copy_calls["count"] == 1
 
