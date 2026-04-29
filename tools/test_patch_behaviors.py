@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 import tempfile
+from unittest import mock
 from pathlib import Path
 
 
@@ -179,6 +180,44 @@ def test_restore_removes_font_mirror_and_locale() -> None:
     assert data == {"keep": True}
 
 
+def test_restore_remove_locale_permission_error_is_retried() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        appdata = Path(tmp) / "appdata"
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        config_path = config_dir / "config.json"
+        config_path.write_text(
+            json.dumps({"locale": "zh-CN", "claudeZhCnFont": {"mode": "preset"}, "keep": True}),
+            encoding="utf-8",
+        )
+
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            restore = load_module("restore_claude_zh_cn_windowsapps_retry", ROOT / "restore_claude_zh_cn_windowsapps.py")
+            original_write_text = Path.write_text
+            write_calls = {"count": 0}
+
+            def flaky_write_text(self, text, encoding=None):
+                if self == config_path and write_calls["count"] == 0:
+                    write_calls["count"] += 1
+                    raise PermissionError("denied")
+                return original_write_text(self, text, encoding=encoding)
+
+            with mock.patch.object(Path, "write_text", flaky_write_text):
+                changed = restore.remove_locale()
+                data = json.loads(config_path.read_text(encoding="utf-8"))
+        finally:
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+    assert write_calls["count"] == 1
+    assert changed is True
+    assert data == {"keep": True}
+
+
 def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -225,6 +264,256 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
         assert json.loads((config_dir / "config.json").read_text(encoding="utf-8"))["locale"] == "zh-CN"
         assert json.loads((resources / "zh-CN.json").read_text(encoding="utf-8-sig"))
         assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json").exists()
+
+
+def test_json_patch_whitelist_write_permission_error_is_retried() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        (resources / "ion-dist" / "i18n" / "statsig").mkdir(parents=True)
+        assets.mkdir(parents=True)
+        (resources / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        index = assets / "index-test.js"
+        index.write_text('const locales=["en-US","fr-FR"];', encoding="utf-8")
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text('{"keep":true}', encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_json = load_module("patch_windowsapps_json_only_retry", ROOT / "patch_windowsapps_json_only.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_windowsapps_json_only.py", "--app-dir", str(app_dir)]
+            write_calls = {"count": 0}
+            original_write_text = Path.write_text
+
+            def flaky_write_text(self, text, encoding=None):
+                if self == index and write_calls["count"] == 0:
+                    write_calls["count"] += 1
+                    raise PermissionError("denied")
+                return original_write_text(self, text, encoding=encoding)
+
+            try:
+                with mock.patch.object(Path, "write_text", flaky_write_text):
+                    result = patch_json.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert result == 0
+        assert write_calls["count"] == 1
+        assert '"zh-CN"' in index.read_text(encoding="utf-8")
+        assert json.loads((config_dir / "config.json").read_text(encoding="utf-8"))["locale"] == "zh-CN"
+
+
+def test_json_patch_resource_copy_permission_error_is_retried() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        (resources / "ion-dist" / "i18n" / "statsig").mkdir(parents=True)
+        assets.mkdir(parents=True)
+        desktop_dst = resources / "zh-CN.json"
+        desktop_dst.write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        index = assets / "index-test.js"
+        index.write_text('const locales=["en-US","fr-FR"];', encoding="utf-8")
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text('{"keep":true}', encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_json = load_module("patch_windowsapps_json_only_copy_retry", ROOT / "patch_windowsapps_json_only.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_windowsapps_json_only.py", "--app-dir", str(app_dir)]
+            original_copy2 = patch_json.shutil.copy2
+            copy_calls = {"count": 0}
+
+            def flaky_copy2(src, dst, *args, **kwargs):
+                if Path(dst) == desktop_dst and copy_calls["count"] == 0:
+                    copy_calls["count"] += 1
+                    raise PermissionError("denied")
+                return original_copy2(src, dst, *args, **kwargs)
+
+            try:
+                with mock.patch.object(patch_json.shutil, "copy2", flaky_copy2):
+                    result = patch_json.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert result == 0
+        assert copy_calls["count"] == 1
+        assert json.loads(desktop_dst.read_text(encoding="utf-8-sig"))
+
+
+def test_json_patch_backup_copy_permission_error_is_retried() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        (resources / "ion-dist" / "i18n" / "statsig").mkdir(parents=True)
+        assets.mkdir(parents=True)
+        desktop_dst = resources / "zh-CN.json"
+        desktop_dst.write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        index = assets / "index-test.js"
+        index.write_text('const locales=["en-US","fr-FR"];', encoding="utf-8")
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text('{"keep":true}', encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_json = load_module("patch_windowsapps_json_only_backup_retry", ROOT / "patch_windowsapps_json_only.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_windowsapps_json_only.py", "--app-dir", str(app_dir)]
+            original_copy2 = patch_json.shutil.copy2
+            backup_dst = localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json"
+            copy_calls = {"count": 0}
+
+            def flaky_copy2(src, dst, *args, **kwargs):
+                if Path(dst) == backup_dst and copy_calls["count"] == 0:
+                    copy_calls["count"] += 1
+                    raise PermissionError("denied")
+                return original_copy2(src, dst, *args, **kwargs)
+
+            try:
+                with mock.patch.object(patch_json.shutil, "copy2", flaky_copy2):
+                    result = patch_json.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert result == 0
+        assert copy_calls["count"] == 1
+        assert backup_dst.exists()
+
+
+def test_chunk_patch_permission_error_is_retried() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        assets = app_dir / "resources" / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+        index = assets / "index-test.js"
+        index.write_text("console.log('app');\n", encoding="utf-8")
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text("{}", encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_chunks = load_module("patch_chunks_zh_cn_retry", ROOT / "patch_chunks_zh_cn.py")
+            original_write_text = Path.write_text
+            write_calls = {"index": 0, "config": 0}
+
+            def flaky_write_text(self, text, encoding=None):
+                if self == index and write_calls["index"] == 0:
+                    write_calls["index"] += 1
+                    raise PermissionError("denied")
+                if self == config_dir / "config.json" and write_calls["config"] == 0:
+                    write_calls["config"] += 1
+                    raise PermissionError("denied")
+                return original_write_text(self, text, encoding=encoding)
+
+            with mock.patch.object(Path, "write_text", flaky_write_text):
+                changed = patch_chunks.patch_font_runtime(assets)
+                mirrored = patch_chunks.set_font_config_mirror()
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert write_calls["index"] == 1
+        assert write_calls["config"] == 1
+        assert changed == 1
+        assert mirrored is True
+        assert "__CLAUDE_ZH_CN_FONT_PATCH__" in index.read_text(encoding="utf-8")
+        data = json.loads((config_dir / "config.json").read_text(encoding="utf-8"))
+        assert data["claudeZhCnFont"]["mode"] == "preset"
+
+
+def test_chunk_patch_backup_copy_permission_error_is_retried() -> None:
+    patch_chunks = load_module("patch_chunks_zh_cn_backup_retry", ROOT / "patch_chunks_zh_cn.py")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        assets = Path(tmp)
+        index = assets / "index-test.js"
+        index.write_text("console.log('app');\n", encoding="utf-8")
+
+        backup_dst = Path(os.environ.get("LOCALAPPDATA", str(assets))) / "Claude-zh-CN-official-backup" / "chunks" / "index-test.js"
+        original_copy2 = patch_chunks.shutil.copy2
+        copy_calls = {"count": 0}
+
+        def flaky_copy2(src, dst, *args, **kwargs):
+            if Path(dst).name == backup_dst.name and copy_calls["count"] == 0:
+                copy_calls["count"] += 1
+                raise PermissionError("denied")
+            return original_copy2(src, dst, *args, **kwargs)
+
+        with mock.patch.object(patch_chunks.shutil, "copy2", flaky_copy2):
+            patch_chunks.backup_file(index, assets)
+
+    assert copy_calls["count"] == 1
 
 
 def test_restore_restores_json_and_chunk_backups() -> None:
@@ -278,6 +567,57 @@ def test_restore_restores_json_and_chunk_backups() -> None:
         assert result == 0
         assert json.loads((resources / "zh-CN.json").read_text(encoding="utf-8")) == {"original": True}
         assert (assets / "index-test.js").read_text(encoding="utf-8") == "original"
+
+
+def test_restore_copy_permission_error_is_retried() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        resources.mkdir(parents=True)
+        target = resources / "zh-CN.json"
+        target.write_text('{"patched":true}', encoding="utf-8")
+
+        backup_json = localappdata / "Claude-zh-CN-official-backup" / "json-only"
+        backup_json.mkdir(parents=True)
+        (backup_json / "zh-CN.json").write_text('{"original":true}', encoding="utf-8")
+
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text('{"keep":true}', encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            restore = load_module("restore_claude_zh_cn_windowsapps_copy_retry", ROOT / "restore_claude_zh_cn_windowsapps.py")
+            original_copy2 = restore.shutil.copy2
+            copy_calls = {"count": 0}
+
+            def flaky_copy2(src, dst, *args, **kwargs):
+                if Path(dst) == target and copy_calls["count"] == 0:
+                    copy_calls["count"] += 1
+                    raise PermissionError("denied")
+                return original_copy2(src, dst, *args, **kwargs)
+
+            with mock.patch.object(restore.shutil, "copy2", flaky_copy2):
+                restored = restore.restore_from(backup_json, resources)
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert copy_calls["count"] == 1
+        assert restored == 1
+        assert json.loads(target.read_text(encoding="utf-8")) == {"original": True}
         assert json.loads((config_dir / "config.json").read_text(encoding="utf-8")) == {"keep": True}
 
 

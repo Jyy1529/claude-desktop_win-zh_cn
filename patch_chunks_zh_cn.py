@@ -13,6 +13,7 @@ import argparse
 import json
 import os
 import shutil
+import stat
 from pathlib import Path
 
 
@@ -375,7 +376,29 @@ def backup_file(path: Path, assets_dir: Path) -> None:
     dst = BACKUP_ROOT / rel
     dst.parent.mkdir(parents=True, exist_ok=True)
     if not dst.exists():
-        shutil.copy2(path, dst)
+        copy2_best_effort(path, dst, context="backup file")
+
+
+def copy2_best_effort(src: Path, dst: Path, *, context: str) -> bool:
+    """Copy a file and retry once after clearing the destination readonly bit."""
+    try:
+        shutil.copy2(src, dst)
+        return True
+    except PermissionError:
+        if dst.exists():
+            try:
+                dst.chmod(dst.stat().st_mode | stat.S_IWRITE)
+            except OSError:
+                pass
+        try:
+            shutil.copy2(src, dst)
+            return True
+        except OSError as e:
+            print(f"Warning: cannot copy {context} from {src} to {dst}: {e}; skipping")
+            return False
+    except OSError as e:
+        print(f"Warning: cannot copy {context} from {src} to {dst}: {e}; skipping")
+        return False
 
 
 def set_font_config_mirror() -> bool:
@@ -396,11 +419,32 @@ def set_font_config_mirror() -> bool:
             "family": FONT_PRESETS[0]["family"],
         },
     )
-    CONFIG_PATH.write_text(
+    return write_text_best_effort(
+        CONFIG_PATH,
         json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+        context="font config mirror",
     )
-    return True
+
+
+def write_text_best_effort(path: Path, text: str, *, context: str) -> bool:
+    """Write text and degrade gracefully on Windows permission issues."""
+    try:
+        path.write_text(text, encoding="utf-8")
+        return True
+    except PermissionError:
+        try:
+            path.chmod(path.stat().st_mode | stat.S_IWRITE)
+        except OSError:
+            pass
+        try:
+            path.write_text(text, encoding="utf-8")
+            return True
+        except OSError as e:
+            print(f"Warning: cannot write {context} at {path}: {e}; skipping")
+            return False
+    except OSError as e:
+        print(f"Warning: cannot write {context} at {path}: {e}; skipping")
+        return False
 
 
 def patch_font_runtime(assets_dir: Path) -> int:
@@ -438,9 +482,9 @@ def patch_font_runtime(assets_dir: Path) -> int:
 
         if new_content == content:
             continue
-        path.write_text(new_content, encoding="utf-8")
-        changed += 1
-        print(f"  {path.name}: {action}")
+        if write_text_best_effort(path, new_content, context="font runtime patch"):
+            changed += 1
+            print(f"  {path.name}: {action}")
     return changed
 
 
@@ -660,9 +704,9 @@ def main() -> int:
                     content = content.replace(old, new)
                     changed += 1
             if changed > 0:
-                fpath.write_text(content, encoding="utf-8")
-                total += changed
-                print(f"  {fpath.name}: {changed} replacements")
+                if write_text_best_effort(fpath, content, context="chunk replacement"):
+                    total += changed
+                    print(f"  {fpath.name}: {changed} replacements")
 
     font_patches = patch_font_runtime(assets_dir)
     config_mirrored = set_font_config_mirror()

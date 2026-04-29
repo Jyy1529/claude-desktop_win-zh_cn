@@ -17,6 +17,7 @@ import json
 import os
 import re
 import shutil
+import stat
 from pathlib import Path
 
 
@@ -44,7 +45,50 @@ def backup_file(path: Path, app_resources: Path) -> None:
     dst = BACKUP_ROOT / rel
     dst.parent.mkdir(parents=True, exist_ok=True)
     if not dst.exists():
-        shutil.copy2(path, dst)
+        copy2_best_effort(path, dst, context="backup file")
+
+
+def copy2_best_effort(src: Path, dst: Path, *, context: str) -> bool:
+    """Copy a file and retry once after clearing the destination readonly bit."""
+    try:
+        shutil.copy2(src, dst)
+        return True
+    except PermissionError:
+        if dst.exists():
+            try:
+                dst.chmod(dst.stat().st_mode | stat.S_IWRITE)
+            except OSError:
+                pass
+        try:
+            shutil.copy2(src, dst)
+            return True
+        except OSError as e:
+            print(f"Warning: cannot copy {context} from {src} to {dst}: {e}")
+            return False
+    except OSError as e:
+        print(f"Warning: cannot copy {context} from {src} to {dst}: {e}")
+        return False
+
+
+def write_text_best_effort(path: Path, text: str, *, context: str) -> bool:
+    """Write text and degrade gracefully on Windows permission issues."""
+    try:
+        path.write_text(text, encoding="utf-8")
+        return True
+    except PermissionError:
+        try:
+            path.chmod(path.stat().st_mode | stat.S_IWRITE)
+        except OSError:
+            pass
+        try:
+            path.write_text(text, encoding="utf-8")
+            return True
+        except OSError as e:
+            print(f"Warning: cannot write {context} at {path}: {e}; skipping")
+            return False
+    except OSError as e:
+        print(f"Warning: cannot write {context} at {path}: {e}; skipping")
+        return False
 
 
 def patch_whitelist(app_resources: Path) -> str | None:
@@ -72,8 +116,8 @@ def patch_whitelist(app_resources: Path) -> str | None:
             # Insert zh-CN before the closing bracket
             patched_array = original_array[:-1] + ',"zh-CN"]'
             text = text.replace(original_array, patched_array, 1)
-            path.write_text(text, encoding="utf-8")
-            return path.name
+            if write_text_best_effort(path, text, context="whitelist patch"):
+                return path.name
 
     print("Warning: whitelist pattern not found in any index bundle")
     return None
@@ -95,11 +139,11 @@ def set_locale() -> bool:
         return True
 
     data["locale"] = "zh-CN"
-    CONFIG_PATH.write_text(
+    return write_text_best_effort(
+        CONFIG_PATH,
         json.dumps(data, ensure_ascii=False, indent=2) + "\n",
-        encoding="utf-8",
+        context="locale config",
     )
-    return True
 
 
 def main() -> int:
@@ -135,7 +179,8 @@ def main() -> int:
             raise SystemExit(f"Missing source resource: {src}")
         backup_file(dst, app_resources)
         dst.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(src, dst)
+        if not copy2_best_effort(src, dst, context="json resource"):
+            raise SystemExit(f"Failed to copy json resource: {src} -> {dst}")
         copied += 1
 
     # Step 2: Patch whitelist
