@@ -38,16 +38,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\claude-zh-cn.ps1
 
 脚本会自动检测 Claude 安装路径，不需要手动填版本号。
 
-如果你更喜欢直接运行单独的脚本：
-
-```powershell
-# 安装
-powershell -NoProfile -ExecutionPolicy Bypass -File .\install-windowsapps-json-only.ps1
-
-# 卸载 / 恢复英文
-powershell -NoProfile -ExecutionPolicy Bypass -File .\restore-windowsapps-zh-cn.ps1
-```
-
 ## 仓库结构
 
 ```
@@ -107,67 +97,12 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\restore-windowsapps-zh-cn.
 - 为 Windows 版 Claude Desktop 提供可用的 `zh-CN` 中文界面。
 - 尽量复用现有中文翻译资源，并随上游英文资源变化进行兼容合并。
 - 把主线影响范围限制在语言资源层。
-- 不再以 `Configure Third-Party Inference` 的可用性/汉化为目标。
-
-## 当前建议使用方式
-
-如果你只是要维护翻译资源或给普通界面打补丁，优先走下面这条：
-
-1. 修改 `resources/` 下的翻译文件
-2. 运行资源校验脚本
-3. 使用 `install-windowsapps-json-only.ps1`
-4. 只验证普通界面、设置页和常规文案
-
-不要把下面这些页面当作当前主线验证目标：
-
-- `Configure Third-Party Inference`
-- 其它 3P 专属页面
-- 依赖运行时 chunk 的实验性菜单项
-
-## JSON-only 官方包补丁
-
-当前仓库中，面向官方包的主线脚本是：
-
-```text
-patch_windowsapps_json_only.py
-install-windowsapps-json-only.ps1
-restore-windowsapps-zh-cn.ps1
-```
-
-这条路径只会写入：
-
-- `resources\zh-CN.json`
-- `resources\ion-dist\i18n\zh-CN.json`
-- `resources\ion-dist\i18n\statsig\zh-CN.json`
-
-它不会再主动做这些事：
-
-- patch 3P chunk
-- patch 导航 chunk
-- 修改运行时 bundle 结构
-- 把 `Configure Third-Party Inference` 作为兼容目标
-
-## 说明
-
-下面这部分内容对应的是早期的“导出副本补丁”路线。
-
-⚠️ 以下内容仅作为历史记录保留，不代表当前仓库主线实现。
-
-当前仓库主线已经切换为：直接对已安装的 Claude Desktop 资源目录执行 JSON + chunk 补丁，并配套恢复脚本，而不是导出一份可执行副本。
-
-它现在只作为历史记录保留：
-
-- 不再是仓库主线
-- 不建议新使用者优先采用
-- 主要用于回看之前的实现方式和兼容性排查
 
 ## 功能特点
 
 - 一键导出 Windows 版 Claude Desktop 的中文补丁副本。
 - 自动给前端语言白名单加入 `zh-CN`。
 - 自动合并当前 Claude 版本的英文前端语言文件与随包中文翻译。
-- 新版本新增但暂未翻译的字段会保留英文，避免界面缺失文本。
-- 不直接修改官方 `WindowsApps` 安装目录。
 - 安装后统一写入 `locale=zh-CN`，不再提供额外的 locale 分支。
 - 运行时继续使用原版 Claude 的用户数据目录，避免切换到一套新的空配置。
 
@@ -180,7 +115,6 @@ restore-windowsapps-zh-cn.ps1
 ## 设计原则
 
 - 不直接替换官方安装包。
-- 不依赖修改 `WindowsApps` 目录权限。
 - 安装结果固定输出到用户本地目录，便于更新和删除。
 - 启动时继续使用原版 Claude 的用户数据目录，减少对其它配置的扰动。
 
@@ -246,10 +180,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\claude-zh-cn.ps1
 C:\Users\<your-user>\AppData\Local\Claude-zh-CN
 ```
 
-### 旧模式说明（已废弃）
-
-这套旧导出副本曾区分两种启动方式；当前主线已统一为默认写入 `locale=zh-CN`，不再提供额外分支。
-
 ## 单一模式
 
 - 当前主线统一写入 `locale=zh-CN`
@@ -290,16 +220,6 @@ C:\Users\<your-user>\AppData\Local\Packages\Claude_pzs8sxrjxfjjc\LocalCache\Roam
 - 其它桌面配置
 
 ## 第三方推理说明
-
-这部分是旧方案遗留说明，仅供参考。
-
-当前仓库主线已经明确：
-
-- 不再把 `Configure Third-Party Inference` 纳入补丁目标
-- 不再围绕 3P 页面做兼容承诺
-- 不再建议为了 3P 去修改运行时 bundle
-
-以下内容保留为历史资料。
 
 如果你要把 Desktop 接到本地代理，例如 `cc-switch`，推荐走官方的第三方推理入口，而不是直接改内部配置文件。
 
@@ -570,8 +490,6 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\claude-zh-cn.ps1
 
 ## 注意
 
-⚠️ 本节以下内容主要对应历史“导出副本补丁”路线，不是当前主线安装方式。
-
 - 官方 Claude 更新后，可能需要重新运行安装脚本。
 - 这个方案是“导出副本补丁”，不是“原地替换官方安装包”。
 - 不建议直接修改 `C:\Program Files\WindowsApps` 下的官方安装目录。
@@ -580,32 +498,11 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\claude-zh-cn.ps1
 
 ## 卸载 / 恢复
 
-⚠️ 本节以下内容主要对应历史“导出副本补丁”路线。当前主线请优先使用 `claude-zh-cn.ps1`、`restore-windowsapps-zh-cn.ps1` 或 `restore_claude_zh_cn_windowsapps.py`。
-
 本项目不会直接改动官方安装目录，卸载方式也比较简单。
 
-### 使用卸载脚本
-
-可以直接运行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\restore-windowsapps-zh-cn.ps1
 ```
-
-或在交互菜单中选择卸载。
-
-如果你要恢复到只使用官方 Claude Desktop：
-
-1. 关闭补丁版 Claude。
-2. 删除导出的补丁副本目录：
-
-```text
-C:\Users\<your-user>\AppData\Local\Claude-zh-CN
+powershell -NoProfile -ExecutionPolicy Bypass -File .\claude-zh-cn.ps1
 ```
-
-3. 如有需要，改回你自己的启动方式，不再使用补丁版启动器。
-
-恢复脚本已经会移除 `zh-CN` 资源、白名单残留、`locale` 和 `claudeZhCnFont`；当前主线不再提供额外的启动器分支。
 
 ## 免责声明
 
