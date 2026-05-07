@@ -166,20 +166,6 @@ C:\Users\<your-user>\AppData\Local\Claude-zh-CN
 └─ README.md
 ```
 
-## 使用方式
-
-在当前目录运行：
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\claude-zh-cn.ps1
-```
-
-安装完成后，到下面目录启动：
-
-```text
-C:\Users\<your-user>\AppData\Local\Claude-zh-CN
-```
-
 ## 单一模式
 
 - 当前主线统一写入 `locale=zh-CN`
