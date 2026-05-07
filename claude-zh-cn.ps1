@@ -175,12 +175,25 @@ function Get-PatchStatus {
 
   # 检查备份
   $hasBackup = (Test-Path $backupRoot) -and ((Get-ChildItem $backupRoot -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0)
+  $hasArtifacts = $hasZhFiles -or $hasWhitelist -or $hasLocale
+
+  $state = if ($hasZhFiles -and $hasWhitelist) {
+    if ($hasLocale) { 'Installed' } else { 'InstalledNoLocale' }
+  } elseif ($hasArtifacts) {
+    'Partial'
+  } elseif ($hasBackup) {
+    'CleanWithBackup'
+  } else {
+    'Clean'
+  }
 
   return @{
     ZhFiles    = $hasZhFiles
     Whitelist  = $hasWhitelist
     Locale     = $hasLocale
     Backup     = $hasBackup
+    HasArtifacts = $hasArtifacts
+    State      = $state
     Installed  = $hasZhFiles -and $hasWhitelist
   }
 }
@@ -200,10 +213,12 @@ function Show-Status {
   if ($s.Backup)     { Write-OK   '备份存在' }             else { Write-Info '无备份' }
 
   Write-Host ''
-  if ($s.Installed) {
-    Write-OK '中文补丁状态: 已安装'
-  } else {
-    Write-Info '中文补丁状态: 未安装'
+  switch ($s.State) {
+    'Installed' { Write-OK   '中文补丁状态: 已安装' }
+    'InstalledNoLocale' { Write-Warn '中文补丁状态: 已安装（locale 未设置）' }
+    'Partial' { Write-Warn '中文补丁状态: 部分残留' }
+    'CleanWithBackup' { Write-Info '中文补丁状态: 已卸载（备份保留）' }
+    default { Write-Info '中文补丁状态: 未安装' }
   }
 
   return $s
@@ -251,7 +266,7 @@ function Invoke-Uninstall {
   Write-Host ''
 
   $s = Get-PatchStatus
-  if (-not $s.Backup) {
+  if (-not $s.HasArtifacts -and -not $s.Backup) {
     Write-Warn '未找到备份文件，无法自动恢复。'
     Write-Info "备份目录: $backupRoot"
 

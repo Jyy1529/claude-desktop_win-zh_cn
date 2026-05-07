@@ -155,6 +155,30 @@ def test_noninteractive_scripts_support_app_dir() -> None:
     assert "--app-dir \"$AppDir\"" in restore
 
 
+def test_powershell_status_distinguishes_cleanup_states() -> None:
+    content = (ROOT / "claude-zh-cn.ps1").read_text(encoding="utf-8-sig")
+
+    assert "HasArtifacts" in content
+    assert "State" in content
+    assert "中文补丁状态: 已安装（locale 未设置）" in content
+    assert "中文补丁状态: 部分残留" in content
+    assert "中文补丁状态: 已卸载（备份保留）" in content
+    assert "if (-not $s.HasArtifacts -and -not $s.Backup)" in content
+
+
+def test_readme_no_longer_describes_dual_locale_modes() -> None:
+    readme = (ROOT / "README.md").read_text(encoding="utf-8")
+
+    assert "keep-locale" not in readme
+    assert "no-locale" not in readme
+    assert "保留 locale" not in readme
+    assert "不保留 locale" not in readme
+    assert "install-windows-zh-cn" not in readme
+    assert "uninstall-windows-zh-cn" not in readme
+    assert "patch_claude_zh_cn_windowsapps.py" not in readme
+    assert "安装脚本会写入 `locale=zh-CN`。" in readme
+
+
 def test_restore_removes_font_mirror_and_locale() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         appdata = Path(tmp) / "appdata"
@@ -494,6 +518,48 @@ def test_chunk_patch_permission_error_is_retried() -> None:
         assert data["claudeZhCnFont"]["mode"] == "preset"
 
 
+def test_chunk_patch_translates_keep_awake_label() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        assets = app_dir / "resources" / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+        index = assets / "index-test.js"
+        index.write_text('const label="Keep awake";', encoding="utf-8")
+
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text("{}", encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_chunks = load_module("patch_chunks_zh_cn_keep_awake", ROOT / "patch_chunks_zh_cn.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_chunks_zh_cn.py", "--app-dir", str(app_dir)]
+            try:
+                result = patch_chunks.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert result == 0
+        assert "Keep awake" not in index.read_text(encoding="utf-8")
+        assert "保持唤醒" in index.read_text(encoding="utf-8")
+
+
 def test_chunk_patch_backup_copy_permission_error_is_retried() -> None:
     patch_chunks = load_module("patch_chunks_zh_cn_backup_retry", ROOT / "patch_chunks_zh_cn.py")
 
@@ -577,8 +643,185 @@ def test_restore_restores_json_and_chunk_backups() -> None:
                 os.environ["APPDATA"] = old_appdata
 
         assert result == 0
-        assert json.loads((resources / "zh-CN.json").read_text(encoding="utf-8")) == {"original": True}
+        assert not (resources / "zh-CN.json").exists()
         assert (assets / "index-test.js").read_text(encoding="utf-8") == "original"
+
+
+def test_restore_main_removes_installed_zh_cn_artifacts() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+
+        (resources / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n").mkdir(parents=True)
+        (resources / "ion-dist" / "i18n" / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "statsig").mkdir(parents=True)
+        (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
+        (assets / "index-test.js").write_text('const locales=["en-US","fr-FR","zh-CN"];', encoding="utf-8")
+
+        backup_base = localappdata / "Claude-zh-CN-official-backup"
+        backup_json = backup_base / "json-only"
+        backup_chunks = backup_base / "chunks"
+        backup_json.mkdir(parents=True)
+        backup_chunks.mkdir(parents=True)
+        (backup_json / "ion-dist" / "assets" / "v1").mkdir(parents=True)
+        (backup_json / "ion-dist" / "assets" / "v1" / "index-test.js").write_text('const locales=["en-US","fr-FR"];', encoding="utf-8")
+        (backup_chunks / "ion-dist" / "assets" / "v1").mkdir(parents=True)
+        (backup_chunks / "ion-dist" / "assets" / "v1" / "index-test.js").write_text('const locales=["en-US","fr-FR","zh-CN"];', encoding="utf-8")
+
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text(
+            json.dumps({"locale": "zh-CN", "claudeZhCnFont": {"mode": "preset"}, "keep": True}),
+            encoding="utf-8",
+        )
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            restore = load_module("restore_for_cleanup_test", ROOT / "restore_claude_zh_cn_windowsapps.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["restore_claude_zh_cn_windowsapps.py", "--app-dir", str(app_dir)]
+            try:
+                result = restore.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert result == 0
+        assert not (resources / "zh-CN.json").exists()
+        assert not (resources / "ion-dist" / "i18n" / "zh-CN.json").exists()
+        assert not (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").exists()
+        assert '"zh-CN"' not in (assets / "index-test.js").read_text(encoding="utf-8")
+        assert json.loads((config_dir / "config.json").read_text(encoding="utf-8")) == {"keep": True}
+
+
+def test_restore_ignores_legacy_full_patch_when_current_backups_exist() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+
+        (resources / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
+        (assets / "index-test.js").write_text('children:"新建任务"', encoding="utf-8")
+
+        backup_base = localappdata / "Claude-zh-CN-official-backup"
+        backup_json = backup_base / "json-only"
+        backup_chunks = backup_base / "chunks"
+        backup_json.mkdir(parents=True)
+        backup_chunks.mkdir(parents=True)
+        (backup_chunks / "index-test.js").write_text('children:"New task"', encoding="utf-8")
+
+        legacy_full = backup_base / "Claude_legacy"
+        (legacy_full / "ion-dist" / "assets" / "v1").mkdir(parents=True)
+        (legacy_full / "ion-dist" / "assets" / "v1" / "index-test.js").write_text('children:"新建任务"', encoding="utf-8")
+
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text(
+            json.dumps({"locale": "zh-CN", "claudeZhCnFont": {"mode": "preset"}, "keep": True}),
+            encoding="utf-8",
+        )
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            restore = load_module("restore_ignores_legacy_full_patch", ROOT / "restore_claude_zh_cn_windowsapps.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["restore_claude_zh_cn_windowsapps.py", "--app-dir", str(app_dir)]
+            try:
+                result = restore.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert result == 0
+        assert 'children:"New task"' in (assets / "index-test.js").read_text(encoding="utf-8")
+        assert 'children:"新建任务"' not in (assets / "index-test.js").read_text(encoding="utf-8")
+
+
+def test_restore_reverts_stale_chunk_backup_translations() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+
+        stale_content = 'children:"\u65b0\u5efa\u4efb\u52a1";children:"\u9879\u76ee";label:"\u5df2\u5b89\u6392";'
+        (assets / "index-test.js").write_text(stale_content, encoding="utf-8")
+
+        backup_base = localappdata / "Claude-zh-CN-official-backup"
+        backup_chunks = backup_base / "chunks"
+        backup_chunks.mkdir(parents=True)
+        (backup_chunks / "index-test.js").write_text(stale_content, encoding="utf-8")
+
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text(
+            json.dumps({"locale": "zh-CN", "claudeZhCnFont": {"mode": "preset"}, "keep": True}),
+            encoding="utf-8",
+        )
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            restore = load_module("restore_reverts_stale_chunk_backup", ROOT / "restore_claude_zh_cn_windowsapps.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["restore_claude_zh_cn_windowsapps.py", "--app-dir", str(app_dir)]
+            try:
+                result = restore.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        content = (assets / "index-test.js").read_text(encoding="utf-8")
+        assert result == 0
+        assert 'children:"New task"' in content
+        assert 'children:"\u65b0\u5efa\u4efb\u52a1"' not in content
+        assert 'children:"\u9879\u76ee"' not in content
+        assert 'label:"\u5df2\u5b89\u6392"' not in content
 
 
 def test_restore_copy_permission_error_is_retried() -> None:
@@ -642,9 +885,15 @@ def main() -> int:
         test_desktop_menu_translations,
         test_powershell_has_manual_app_dir_fallback,
         test_noninteractive_scripts_support_app_dir,
+        test_powershell_status_distinguishes_cleanup_states,
+        test_readme_no_longer_describes_dual_locale_modes,
         test_restore_removes_font_mirror_and_locale,
+        test_chunk_patch_translates_keep_awake_label,
         test_json_patch_copies_resources_and_patches_locale_whitelist,
         test_restore_restores_json_and_chunk_backups,
+        test_restore_main_removes_installed_zh_cn_artifacts,
+        test_restore_ignores_legacy_full_patch_when_current_backups_exist,
+        test_restore_reverts_stale_chunk_backup_translations,
     ]
     for test in tests:
         test()
