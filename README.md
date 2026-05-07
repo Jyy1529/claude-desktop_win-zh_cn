@@ -28,7 +28,7 @@
 
 ## 快速开始
 
-以管理员身份运行 PowerShell，进入项目目录后执行：
+安装python,以管理员身份运行 PowerShell，进入项目目录后执行：
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\claude-zh-cn.ps1
