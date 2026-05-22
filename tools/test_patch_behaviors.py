@@ -104,7 +104,8 @@ def test_frontend_resource_key_translations() -> None:
     assert data["aDVRC23jKg"] == "技能已移至<link>自定义</link>。"
     assert data["gshbVTjZni"] == "连接器已移至<link>自定义</link>。前往那里浏览、连接和管理连接器。"
     assert data["tgkg69DKCl"] == "你正在通过组织自己的推理提供方 ({providerDisplayName}) 运行 Claude。你的对话会发送到该提供方，而不是 Anthropic，并受你的组织与该提供方之间协议的约束。"
-    assert data["ha5HbvlDOk"] == "你的网关无法提供 {model}。该模型可能未在你的网关上配置，或访问权限受限。"
+    assert data["ha5HbvlDOk"] == "第三方无法提供 {model}。该模型可能未在第三方上配置，或访问权限受限。"
+    assert data["2GURQYNPp3"] == "组织横幅"
     assert data["jA6GVIoYuc"] == "使用来自<link>你的连接器</link>的实时数据，创建保持更新的动态工件。"
     assert data["4LM6AdGWNg"] == "思考{minutes}分钟{seconds}秒"
     assert data["vJn4YbbGd1"] == "{minutes}分钟 {seconds}秒"
@@ -125,9 +126,21 @@ def test_frontend_organization_config_translations() -> None:
     assert data["KZbdbvaU9V"] == "插件与技能"
     assert data["xY1EE6Ndl5"] == "出站要求"
     assert data["Lpq+8Nau5X"].startswith("你的网络防火墙必须允许的主机")
+    assert data["JQs8c3pGcl"] == "第三方 URL"
+    assert data["NA4SBfPMeA"] == "第三方 API 密钥"
+    assert data["tmwK1KjFte"] == "第三方认证方案"
+    assert data["+zZ6KeQPTP"] == "显示横幅"
+    assert data["47aHGyWFid"] == "单行显示，溢出时截断。最多 200 个字符。"
+    assert data["HuIg1+BeMP"] == "可选 HTTPS URL。设置后，横幅文本会变成链接。"
+    assert data["WbM+LbvT9p"] == "六位十六进制颜色值 (#RRGGBB)。将完全按配置应用，不会适配主题。"
+    assert data["DnXPcFgmqb"] == "辅助脚本"
+    assert data["8c6iN3kiDX"] == "交互式登录"
+    assert data["K9q4XwLJd2"] == "MCP 服务器"
+    assert data["rhPs8UtdHq"] == "工具名称"
+    assert data["slIZF8X6Sk"] == "+ 添加服务器策略"
     assert "Authorization: Bearer" in data["WsT/E/qNoC"]
     assert "x-api-key" in data["WsT/E/qNoC"]
-    assert data["EvwX+qKToR"] == "server-name"
+    assert data["EvwX+qKToR"] == "服务器名称"
     assert "{url}" in data["xWiIy0pAlB"]
 
 
@@ -888,6 +901,7 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const an="3d";',
                     'const ao="7d";',
                     'const ap="30d";',
+                    'const policy={allow:"allow",ask:"ask",blocked:"blocked"};',
                     'const mode="system";',
                 ]
             ),
@@ -933,7 +947,7 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert "连接器已移至<link>自定义</link>" in content
         assert "技能已移至" in content
         assert "技能已移至<link>自定义</link>" in content
-        assert "你的网关无法提供 {model}" in content
+        assert "第三方无法提供 {model}" in content
         assert "Create dynamic artifacts that stay up-to-date using live data from <link>your connectors</link>." not in content
         assert "配置的模型不可用" in content
         assert "打开设置向导" in content
@@ -983,6 +997,10 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert 'label:"Projects"' in sidebar_content
         assert 'label:"项目"' not in sidebar_content
         assert 'const mode="system";' in content
+        assert 'const policy={allow:"allow",ask:"ask",blocked:"blocked"};' in content
+        assert '["allow", "允许"]' in content
+        assert '["ask", "询问"]' in content
+        assert '["blocked", "已阻止"]' in content
 
 
 def test_chunk_patch_backup_copy_permission_error_is_retried() -> None:

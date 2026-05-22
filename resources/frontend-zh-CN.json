@@ -816,7 +816,7 @@
   "vzYPVXl4by": "键盘快捷键",
   "y1Z3orIe9Z": "语言",
   "flLEnDzvfG": "接下来做什么，{name}？",
-  "2GURQYNPp3": "外观",
+  "2GURQYNPp3": "组织横幅",
   "6eW2McRZVi": "颜色模式",
   "BqDdI890tk": "活跃天数",
   "uSagFPkSjM": "帮助我整理和清理我的邮件收件箱。\n\n首先，扫描我的收件箱并向我显示摘要：\n- 未读邮件总数\n- 超过 30 天的邮件\n- 邮件的主要发件人或类型\n\n在组织之前，问我：\n- 我想创建哪些类别或文件夹\n- 我想要存档或删除哪些类型的邮件\n- 是否有我想要优先考虑或过滤的特定发件人\n- 我想要解决的任何邮件模式（时事通讯、促销活动等）\n\n首先仅关注超过 30 天的邮件 - 这些最容易清理。给我展示一个拟议的计划：\n- 要存档哪些邮件\n- 删除哪个\n- 哪些需要采取行动\n\n如果有超过 50 封旧邮件，请从 20 封开始，以便我检查你的方法。一旦我批准，就处理该批次。",
@@ -8903,7 +8903,7 @@
   "hz6boymd07": "会话在网络上继续。",
   "hzPj+FU/1R": "角色扮演我需要准备的困难对话",
   "hzmswIqs+i": "团体",
-  "ha5HbvlDOk": "你的网关无法提供 {model}。该模型可能未在你的网关上配置，或访问权限受限。",
+  "ha5HbvlDOk": "第三方无法提供 {model}。该模型可能未在第三方上配置，或访问权限受限。",
   "i+Jica+WPg": "添加失败{count, plural, one {# 仓库} other {# 个仓库}}。你可以再试一次。",
   "i+TY5eOB+b": "报告项目",
   "i+duKCSWRi": "{count, number} 自定义角色",
@@ -12351,14 +12351,23 @@
   ,"DY0aw7svrD":"拒绝未由受信任发布者签名的桌面扩展。"
   ,"EGOuVJosgc":"发送给 Anthropic 的崩溃和性能报告。"
   ,"EATQrlttOw":"组织 UUID"
-  ,"EvwX+qKToR":"server-name"
+  ,"+zZ6KeQPTP":"显示横幅"
+  ,"1e9zwhbnvk":"链接 URL"
+  ,"47aHGyWFid":"单行显示，溢出时截断。最多 200 个字符。"
+  ,"8c6iN3kiDX":"交互式登录"
+  ,"DnXPcFgmqb":"辅助脚本"
+  ,"EvwX+qKToR":"服务器名称"
+  ,"FcISn6aVjf":"第三方 SSO IdP (OIDC)"
   ,"G/QQvx0Tsd":"覆盖自动发现的模型列表。第一项为默认项。"
   ,"HA2UIzGsaT":"阻止非必要服务"
-  ,"JQs8c3pGcl":"Gateway 基础 URL"
+  ,"HuIg1+BeMP":"可选 HTTPS URL。设置后，横幅文本会变成链接。"
+  ,"JQs8c3pGcl":"第三方 URL"
   ,"KZbdbvaU9V":"插件与技能"
   ,"KtZV9pULgo":"连接"
   ,"Lpq+8Nau5X":"你的网络防火墙必须允许的主机，基于当前设置生成。此列表为只读，并会随设置变化更新。除非指定了自定义端口（OTLP、gateway 或 MCP 服务器 URL），否则流量均为 HTTPS 443 端口。"
-  ,"NA4SBfPMeA":"Gateway API 密钥"
+  ,"K9q4XwLJd2":"MCP 服务器"
+  ,"L+geN0DrtO":"第三方登录 (OIDC)"
+  ,"NA4SBfPMeA":"第三方 API 密钥"
   ,"NkMAbPAtIN":"用你组织的 UUID 标记遥测事件，以便 Anthropic 支持人员查找。不会用于认证。"
   ,"OX1+jdVwLL":"阻止自动更新"
   ,"PNFwYup600":"自动更新"
@@ -12368,7 +12377,9 @@
   ,"TjpZxnSuQ5":"通过开发者设置添加的本地 stdio 服务器。远程服务器来自上方的托管列表，或由组织管理员挂载到用户电脑的插件。"
   ,"UQLzOZq7h3":"登录后在应用窗口顶部显示一个持久横幅。"
   ,"UzLHrala3Q":"非必要遥测"
-  ,"WsT/E/qNoC":"Gateway 凭据在线路上的发送方式（Authorization: Bearer 与 x-api-key 标头）。"
+  ,"RtLYfLZ2bT":"辅助脚本 TTL"
+  ,"WbM+LbvT9p":"六位十六进制颜色值 (#RRGGBB)。将完全按配置应用，不会适配主题。"
+  ,"WsT/E/qNoC":"第三方凭据在线路上的发送方式（Authorization: Bearer 与 x-api-key 标头）。"
   ,"Yk0+YjpaDc":"阻止外部应用和网站通过 claude:// 链接打开 Cowork。"
   ,"ZON8uMn14w":"令牌"
   ,"ZRMqH+j2yz":"测试模型发现"
@@ -12389,6 +12400,7 @@
   ,"hv0F38ESRM":"模型列表"
   ,"iGPHC9Tm20":"已禁用的内建工具"
   ,"jJz20QocAd":"自动更新强制安装窗口"
+  ,"hrJRMjrWP7":"空白"
   ,"jETNRIFigw":"OpenTelemetry 导出器协议"
   ,"jU4z+3Uk7+":"模型发现"
   ,"kgHEpmxl05":"静态 API 密钥"
@@ -12403,10 +12415,12 @@
   ,"rdKIIOydC8":"阻止必要遥测"
   ,"recCg9im82":"更新"
   ,"tNxpKP4AlE":"阻止 Cowork 获取更新。你需要自行推送新版本。"
+  ,"rhPs8UtdHq":"工具名称"
+  ,"slIZF8X6Sk":"+ 添加服务器策略"
   ,"t0NuWXREIj":"Cowork 的工具在一次回合中可访问的域名，也会显示在“出站要求”下。"
   ,"tb1OJygJ7I":"当插件发布同名 MCP 服务器后适用。"
   ,"tgblN/n/hK":"用户可作为工作区附加的文件夹。留空表示不限制访问。"
-  ,"tmwK1KjFte":"Gateway 认证方案"
+  ,"tmwK1KjFte":"第三方认证方案"
   ,"uRCffDWQcJ":"Cowork 发送 OpenTelemetry 日志和指标的位置。留空表示禁用。"
   ,"wG2dpZSzTk":"组织推送的 MCP 服务器：远程（HTTP/SSE）或本地（stdio 命令）。可嵌入 bearer token。"
   ,"xWiIy0pAlB":"启动时从 {url} 自动填充模型选择器。"
