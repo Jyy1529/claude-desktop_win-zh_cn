@@ -138,6 +138,12 @@ def test_frontend_organization_config_translations() -> None:
     assert data["K9q4XwLJd2"] == "MCP 服务器"
     assert data["rhPs8UtdHq"] == "工具名称"
     assert data["slIZF8X6Sk"] == "+ 添加服务器策略"
+    assert data["QredwIagLx"] == "遥测配置冲突"
+    assert data["fO2poeLmt6"] == "OpenTelemetry 导出器标头"
+    assert data["7+U8x5o7v9"] == "本地 MCP 服务器"
+    assert data["GtTy+dALpT"] == "你的 MCP 服务器"
+    assert data["LMGYthp0hQ"] == "使用限制"
+    assert data["OsIhLl7KpD"] == "链接 URL（可选）"
     assert "Authorization: Bearer" in data["WsT/E/qNoC"]
     assert "x-api-key" in data["WsT/E/qNoC"]
     assert data["EvwX+qKToR"] == "服务器名称"
