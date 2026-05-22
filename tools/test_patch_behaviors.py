@@ -104,6 +104,31 @@ def test_frontend_resource_key_translations() -> None:
     assert data["aDVRC23jKg"] == "技能已移至<link>自定义</link>。"
     assert data["gshbVTjZni"] == "连接器已移至<link>自定义</link>。前往那里浏览、连接和管理连接器。"
     assert data["tgkg69DKCl"] == "你正在通过组织自己的推理提供方 ({providerDisplayName}) 运行 Claude。你的对话会发送到该提供方，而不是 Anthropic，并受你的组织与该提供方之间协议的约束。"
+    assert data["ha5HbvlDOk"] == "你的网关无法提供 {model}。该模型可能未在你的网关上配置，或访问权限受限。"
+    assert data["jA6GVIoYuc"] == "使用来自<link>你的连接器</link>的实时数据，创建保持更新的动态工件。"
+    assert data["4LM6AdGWNg"] == "思考{minutes}分钟{seconds}秒"
+    assert data["vJn4YbbGd1"] == "{minutes}分钟 {seconds}秒"
+    assert data["dc/vp/cKwc"] == "已过去 {minutes} 分钟"
+    assert data["2Oz8jH5TAw"] == "已过去 {hours} 小时 {minutes} 分钟"
+
+
+def test_frontend_organization_config_translations() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+
+    assert data["KtZV9pULgo"] == "连接"
+    assert data["6T78KTXhBM"] == "自定义推理标头"
+    assert data["jU4z+3Uk7+"] == "模型发现"
+    assert data["g8BMTiGHB6"] == "凭据类型"
+    assert data["CwADEGuH8H"] == "工作区限制"
+    assert data["y/6sGoi9YF"] == "连接器与扩展"
+    assert data["Ba3MtjwP5h"] == "遥测与更新"
+    assert data["KZbdbvaU9V"] == "插件与技能"
+    assert data["xY1EE6Ndl5"] == "出站要求"
+    assert data["Lpq+8Nau5X"].startswith("你的网络防火墙必须允许的主机")
+    assert "Authorization: Bearer" in data["WsT/E/qNoC"]
+    assert "x-api-key" in data["WsT/E/qNoC"]
+    assert data["EvwX+qKToR"] == "server-name"
+    assert "{url}" in data["xWiIy0pAlB"]
 
 
 def test_brand_and_model_names_stay_in_english() -> None:
@@ -835,12 +860,14 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const u="Live artifacts";',
                     'const u_old="工件";',
                     'const u_label={label:"实时工件"};',
+                    'const gateway="Your gateway couldn\u2019t serve {model}. This model may not be configured on your gateway, or access may be restricted.";',
                     'const project_nav={label:"Projects"};',
                     'const project_old={label:"项目"};',
                     'const project_group=["project","Project"];',
                     'const project_group_old=["project","项目"];',
                     'const v="Generate code, documents, and designs in a dedicated window alongside your conversation.";',
                     'const w1="Create dynamic artifacts that stay up-to-date using live data from your connectors.";',
+                    'const w2="Create dynamic artifacts that stay up-to-date using live data from <link>your connectors</link>.";',
                     'const w="Tasks";',
                     'const x="Active";',
                     'const y="Archived";',
@@ -906,6 +933,8 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert "连接器已移至<link>自定义</link>" in content
         assert "技能已移至" in content
         assert "技能已移至<link>自定义</link>" in content
+        assert "你的网关无法提供 {model}" in content
+        assert "Create dynamic artifacts that stay up-to-date using live data from <link>your connectors</link>." not in content
         assert "配置的模型不可用" in content
         assert "打开设置向导" in content
         assert "排序方式" in content
@@ -921,6 +950,7 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert "实时工件" in content
         assert "生成代码、文档和设计" in content
         assert "创建保持更新的动态工件" in content
+        assert "使用来自<link>你的连接器</link>的实时数据，创建保持更新的动态工件。" in content
         assert "任务" in content
         assert "活跃" in content
         assert "已归档" in content

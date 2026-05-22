@@ -859,7 +859,7 @@
   "2O2sfpNPaM": "完成",
   "2O4rj03SC4": "建立团队沟通",
   "2OkhCxK9/N": "不支持的图像类型。选择 PNG。",
-  "2Oz8jH5TAw": "已过去 {hours}h {minutes}m",
+  "2Oz8jH5TAw": "已过去 {hours} 小时 {minutes} 分钟",
   "2P3R8IAj3l": "设置美元金额",
   "2P8WnPChl6": "检测到团队账号",
   "2PX0a5yxRY": "Cowork设置已更新。",
@@ -1213,7 +1213,7 @@
   "4KLD/iHHbG": "选择一个与当前名称不同的名称。",
   "4KbD5KNrVM": "发生意外错误。 <link>联系支持人员。</link>",
   "4L/QbN90sT": "正在进行目录同步。等待其完成后再更改这些设置。",
-  "4LM6AdGWNg": "思考{minutes}米{seconds}秒",
+  "4LM6AdGWNg": "思考{minutes}分钟{seconds}秒",
   "4LRBQRAXhj": "<b>交货日期：</b> {date}",
   "4LttHd6rY7": "在新浏览器选项卡中完成登录步骤。",
   "4M/7DCOUkQ": "{count, plural, one {# 文件} other {# 个文件}}已更改",
@@ -8075,7 +8075,7 @@
   "dZx3khOR0+": "MCP 服务器未连接。请重新连接服务器才能查看该资源。",
   "daydqAm7At": "过滤器（活动）",
   "dbFQyc2Z6A": "该连接器",
-  "dc/vp/cKwc": "{minutes}米过去了",
+  "dc/vp/cKwc": "已过去 {minutes} 分钟",
   "dc10LONq4/": "你已使用了 {surpassedThresholdFormatted} 的用量",
   "dcQY/JXq+4": "你已通过 Android 应用订阅",
   "ddCkDYjswB": "正在处理付款...",
@@ -8350,7 +8350,7 @@
   "f1qSrWrRzF": "设计投资组合仪表板",
   "f1ukEt0F/x": "跳过所有批准？",
   "f2FD7U33A1": "删除项目",
-  "f2YGj7vTV3": "提供反馈时，解释思维过程并突出问题和机会。",
+  "f2YGj7vTV3": "提供反馈时，解释思考过程并突出问题和机会。",
   "f2borUreQz": "无法删除 Webhook。你可以再试一次。",
   "f2uBOQtZmC": "聊天模式",
   "f3FXeCO9EW": "{count, number} 个{type, select, premium {Premium} chat_code {Chat + Claude Code} ss_ent {Claude Enterprise} chat {Chat} nonprofit {Nonprofit} premium_nonprofit {Premium Nonprofit} labs_standard {Research Labs} labs_premium {Research Labs Premium} other {Standard}}席位",
@@ -8903,6 +8903,7 @@
   "hz6boymd07": "会话在网络上继续。",
   "hzPj+FU/1R": "角色扮演我需要准备的困难对话",
   "hzmswIqs+i": "团体",
+  "ha5HbvlDOk": "你的网关无法提供 {model}。该模型可能未在你的网关上配置，或访问权限受限。",
   "i+Jica+WPg": "添加失败{count, plural, one {# 仓库} other {# 个仓库}}。你可以再试一次。",
   "i+TY5eOB+b": "报告项目",
   "i+duKCSWRi": "{count, number} 自定义角色",
@@ -9198,6 +9199,7 @@
   "jYG5vd7QFk": "更改座位等级",
   "jZaS3jHrLQ": "代码主题",
   "jZehqP2Llj": "预览尺寸：{device}。点击循环。",
+  "jA6GVIoYuc": "使用来自<link>你的连接器</link>的实时数据，创建保持更新的动态工件。",
   "jabB4CFkPh": "未读",
   "jbKSopHl/F": "账号不匹配",
   "jc6bvoBzle": "48小时内没有收到？检查你的垃圾邮件文件夹。",
@@ -11402,7 +11404,7 @@
   "vIIbF3muZR": "显示 {start}-{end}（共 {total} 项）",
   "vJ/A+keSIr": "从你的团队中删除（从插件页面管理）",
   "vJZ62kMtra": "RUM 未初始化（门关闭、未授予同意或仍在加载）",
-  "vJn4YbbGd1": "{minutes}米 {seconds}秒",
+  "vJn4YbbGd1": "{minutes}分钟 {seconds}秒",
   "vJofKF/kKx": "请记住，Claude在每次回复之前都会阅读此内容。越短越好！",
   "vKMj39KhGw": "Claude Code",
   "vKkuNliE4t": "输入大纲文档的链接。",
@@ -12208,7 +12210,7 @@
   "zOLGySrDp2": "查看请求/响应",
   "zOR/Uq2aGt": "正在加载问题内容...",
   "zORJLsC+dL": "{scanCount, plural, one {# 扫描} other {# 次扫描}}",
-  "zOab+24EWo": "思维过程问题",
+  "zOab+24EWo": "思考过程问题",
   "zOxoAYYCog": "请求更多编辑、保存或放弃更改",
   "zP6g4HIdGD": "无法保存 Webhook。你可以再试一次。",
   "zPWjZY4n1D": "行为",
@@ -12273,7 +12275,7 @@
   "zjWgSix9lG": "应用已从 Vercel 中删除。",
   "zjrmXpJDVn": "使用电话号码登录",
   "zjw2nHN2kL": "审核中待更改",
-  "zl6fNbo7RW": "思维过程",
+  "zl6fNbo7RW": "思考过程",
   "zlBokkFz85": "我想记录业务流程。请给我空间来逐步引导你完成整个过程。我可能有现有的文档或图表可以开始。跟进任何不清楚的事情，然后创建包含流程图、决策点、责任方和边缘案例的清晰文档，供我们审查和完善。",
   "zlZmUPVSac": "购买额外使用量",
   "zlhFlvfeii": "支付失败。请使用其他付款方式重试。",
@@ -12328,4 +12330,90 @@
   "zzOZLy0ngS": "验证你的代码时出错。如果问题仍然存在，请<link>联系支持人员</link>寻求帮助。",
   "zzp3aYxskJ": "无法开始聊天。你可以再试一次。",
   "CJsWpnYD4": "开始处理你的待办事项吧"
+  ,"0X/lTj2Hvv":"产品使用分析和诊断报告上传。不包含消息内容。"
+  ,"0hPFsTuQ1X":"每次向已配置提供方发送推理请求时附加的额外 HTTP 标头。用于租户路由、组织 ID、Bedrock Guardrails 等。"
+  ,"1QKV7FS8FM":"允许用户添加 MCP 服务器"
+  ,"1v9Ga0vYPM":"从 Cowork 中移除的内建工具。"
+  ,"2IB0Hxh1vO":".dxt 和 .mcpb 安装。"
+  ,"2WpSzHZZ1X":"[仅 Ants] 组织 UUID"
+  ,"4MengK4xQ/":"小时"
+  ,"4RwYWBmY40":"这会禁用工件预览和连接器图标。工件将不会在对话中渲染。"
+  ,"5WLafALiPe":"下载的更新强制安装前等待的小时数。留空 = 默认 72 小时。"
+  ,"6T78KTXhBM":"自定义推理标头"
+  ,"6TgDeF8iRs":"添加策略"
+  ,"6cmRKZgiFv":"推理网关端点的完整 URL。"
+  ,"8Jc9WEC0S8":"桌面扩展（Python 运行时）"
+  ,"Amxb69AvfR":"选择 Claude Desktop 发送推理请求的位置。"
+  ,"Ba3MtjwP5h":"遥测与更新"
+  ,"CwADEGuH8H":"工作区限制"
+  ,"DC+lIM7C8k":"受你组织管理的 MCP 服务器"
+  ,"DHdnIxD7G9":"禁用 Claude.ai 登录"
+  ,"DY0aw7svrD":"拒绝未由受信任发布者签名的桌面扩展。"
+  ,"EGOuVJosgc":"发送给 Anthropic 的崩溃和性能报告。"
+  ,"EATQrlttOw":"组织 UUID"
+  ,"EvwX+qKToR":"server-name"
+  ,"G/QQvx0Tsd":"覆盖自动发现的模型列表。第一项为默认项。"
+  ,"HA2UIzGsaT":"阻止非必要服务"
+  ,"JQs8c3pGcl":"Gateway 基础 URL"
+  ,"KZbdbvaU9V":"插件与技能"
+  ,"KtZV9pULgo":"连接"
+  ,"Lpq+8Nau5X":"你的网络防火墙必须允许的主机，基于当前设置生成。此列表为只读，并会随设置变化更新。除非指定了自定义端口（OTLP、gateway 或 MCP 服务器 URL），否则流量均为 HTTPS 443 端口。"
+  ,"NA4SBfPMeA":"Gateway API 密钥"
+  ,"NkMAbPAtIN":"用你组织的 UUID 标记遥测事件，以便 Anthropic 支持人员查找。不会用于认证。"
+  ,"OX1+jdVwLL":"阻止自动更新"
+  ,"PNFwYup600":"自动更新"
+  ,"Pc8UzwjRqD":"非必要服务"
+  ,"Qee7joNNug":"核心（VM 套件 + Claude CLI 二进制）"
+  ,"TU4G1seELu":"获取网站图标和工件预览 iframe 来源。工件将不会渲染。"
+  ,"TjpZxnSuQ5":"通过开发者设置添加的本地 stdio 服务器。远程服务器来自上方的托管列表，或由组织管理员挂载到用户电脑的插件。"
+  ,"UQLzOZq7h3":"登录后在应用窗口顶部显示一个持久横幅。"
+  ,"UzLHrala3Q":"非必要遥测"
+  ,"WsT/E/qNoC":"Gateway 凭据在线路上的发送方式（Authorization: Bearer 与 x-api-key 标头）。"
+  ,"Yk0+YjpaDc":"阻止外部应用和网站通过 claude:// 链接打开 Cowork。"
+  ,"ZON8uMn14w":"令牌"
+  ,"ZRMqH+j2yz":"测试模型发现"
+  ,"aTTY7rU6Bh":"每个窗口的最大令牌数"
+  ,"auYj3lyf1+":"Anthropic 遥测"
+  ,"bU34Yscprn":"组织横幅"
+  ,"bmP92ZCban":"需要签名的扩展"
+  ,"dYlenA3UP7":"OpenTelemetry"
+  ,"dzVdmB+VtN":"显示 Code 选项卡（基于终端的编码会话）。会话在主机上运行，而不是在 VM 中运行。"
+  ,"eF+Y8JJNCJ":"允许 Claude Code 选项卡"
+  ,"e7MZONhk6R":"凭据已解析，但有警告"
+  ,"eZ5nPbhsce":"没有组织插件"
+  ,"enn6AdQzxk":"提示、补全和你的数据绝不会发送给 Anthropic。遥测仅涵盖崩溃和使用信号。"
+  ,"f1i0YzV/bT":"Claude Desktop — 防火墙允许列表（SNI 主机名；除非配置了自定义端口，否则为 HTTPS/443）"
+  ,"g8BMTiGHB6":"凭据类型"
+  ,"hhKxQ3MtxT":"内建工具策略"
+  ,"hesC0E8eFo":"用户在登录屏幕上只会看到此提供方。登录 Claude.ai 的选项会被隐藏。"
+  ,"hv0F38ESRM":"模型列表"
+  ,"iGPHC9Tm20":"已禁用的内建工具"
+  ,"jJz20QocAd":"自动更新强制安装窗口"
+  ,"jETNRIFigw":"OpenTelemetry 导出器协议"
+  ,"jU4z+3Uk7+":"模型发现"
+  ,"kgHEpmxl05":"静态 API 密钥"
+  ,"knHnvzpkOf":"允许桌面扩展"
+  ,"lNkHsi7ue9":"待处理策略"
+  ,"lNFYd00Hds":"防火墙允许列表（.txt）"
+  ,"nOBN85iT+Z":"使用你的设备管理工具将插件包挂载到此文件夹，Cowork 会在启动时加载它们。该文件夹为只读；你在下方设置的工具策略会保存在此配置中。"
+  ,"oo4Av05fBn":"阻止非必要遥测"
+  ,"ozzKmITBMv":"每用户软上限，在下方时长内按客户端计数。不是服务器强制执行的配额。"
+  ,"pOeEMxHCXp":"添加服务器"
+  ,"pZtlP3k82t":"凭据类型"
+  ,"rdKIIOydC8":"阻止必要遥测"
+  ,"recCg9im82":"更新"
+  ,"tNxpKP4AlE":"阻止 Cowork 获取更新。你需要自行推送新版本。"
+  ,"t0NuWXREIj":"Cowork 的工具在一次回合中可访问的域名，也会显示在“出站要求”下。"
+  ,"tb1OJygJ7I":"当插件发布同名 MCP 服务器后适用。"
+  ,"tgblN/n/hK":"用户可作为工作区附加的文件夹。留空表示不限制访问。"
+  ,"tmwK1KjFte":"Gateway 认证方案"
+  ,"uRCffDWQcJ":"Cowork 发送 OpenTelemetry 日志和指标的位置。留空表示禁用。"
+  ,"wG2dpZSzTk":"组织推送的 MCP 服务器：远程（HTTP/SSE）或本地（stdio 命令）。可嵌入 bearer token。"
+  ,"xWiIy0pAlB":"启动时从 {url} 自动填充模型选择器。"
+  ,"xXr+rGIv+A":"选择凭据来源。设置后只使用该来源（不回退）。"
+  ,"xY1EE6Ndl5":"出站要求"
+  ,"xovdJlXIM6":"OpenTelemetry 收集器端点"
+  ,"y/6sGoi9YF":"连接器与扩展"
+  ,"y3gym+4SMI":"允许的工作区文件夹"
+  ,"zPhYdevJ+s":"每个工具的审批策略。`ask` 表示每次调用前都需要用户批准；`allow` 是默认值。使用“已禁用的内建工具”可以彻底移除某个工具。"
 }
