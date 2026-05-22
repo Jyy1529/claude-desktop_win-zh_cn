@@ -168,4 +168,4 @@ app\resources\en-US.json
 
 ## 致谢
 
-感谢 LINUX DO 社区的支持与分享，也感谢 `javaht/claude-desktop-zh-cn` 提供的早期参考。
+感谢 [LINUX DO](https://linux.do/) 社区的支持与分享，也感谢 `javaht/claude-desktop-zh-cn` 提供的早期参考。
