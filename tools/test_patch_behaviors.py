@@ -111,6 +111,7 @@ def test_frontend_resource_key_translations() -> None:
     assert data["vJn4YbbGd1"] == "{minutes}分钟 {seconds}秒"
     assert data["dc/vp/cKwc"] == "已过去 {minutes} 分钟"
     assert data["2Oz8jH5TAw"] == "已过去 {hours} 小时 {minutes} 分钟"
+    assert data["zElqHZzItw"] == "发一个讯息…"
 
 
 def test_frontend_organization_config_translations() -> None:
@@ -922,6 +923,8 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const ao="7d";',
                     'const ap="30d";',
                     'const policy={allow:"allow",ask:"ask",blocked:"blocked"};',
+                    'const greeting="Hi, I\'m Claude. How can I help you today?";',
+                    'const greeting_bad="Hi, I\'m Claude. How can I helpyou today?";',
                     'const mode="system";',
                 ]
             ),
@@ -1017,6 +1020,8 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert 'label:"Projects"' in sidebar_content
         assert 'label:"项目"' not in sidebar_content
         assert 'const mode="system";' in content
+        assert "你好，我是 Claude。今天我能帮你什么？" in content
+        assert "Hi, I'm Claude. How can I help" not in content
         assert 'const policy={allow:"allow",ask:"ask",blocked:"blocked"};' in content
         assert '["allow", "允许"]' in content
         assert '["ask", "询问"]' in content
