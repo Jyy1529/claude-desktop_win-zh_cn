@@ -12,6 +12,40 @@
 - 如果自动检测失败，可以在交互式脚本里手动指定 Claude 的 `app` 目录。
 - 每次 Claude Desktop 更新后，通常都需要重新运行安装脚本。
 
+## 当前验证环境
+
+- Claude Desktop：`1.8555.0.0`（WindowsApps 包路径形如 `Claude_1.8555.0.0_x64__pzs8sxrjxfjjc`）
+- Windows：Windows 版 Claude Desktop
+- Python：Python 3.12 已验证；理论上 Python 3.10+ 均可使用
+- PowerShell：Windows PowerShell，安装和恢复需要管理员权限
+
+如果你的 Claude Desktop 版本高于这里记录的版本，仍可尝试安装；如果资源目录或 JS chunk 结构变化，可能需要更新补丁规则。
+
+## 安装 Python 3
+
+本项目的安装脚本会调用 Python。新机器必须先安装 Python 3。
+
+推荐方式：
+
+1. 打开 <https://www.python.org/downloads/windows/>
+2. 下载最新版 Python 3 安装器。
+3. 安装时勾选 `Add python.exe to PATH`。
+4. 安装完成后重新打开 PowerShell。
+
+检查 Python 是否可用：
+
+```powershell
+python --version
+```
+
+如果 `python` 不可用，也可以检查：
+
+```powershell
+py --version
+```
+
+只要其中一个命令能输出 Python 3 版本，脚本就可以继续运行。
+
 ## 文件结构
 
 - `resources/desktop-zh-CN.json`：桌面壳层中文资源。
@@ -46,6 +80,30 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\install-windowsapps-json-o
 ```
 
 安装脚本会先关闭 Claude 进程，再写入资源和补丁。安装完成后需要重新打开 Claude Desktop。
+
+## 新机器使用
+
+在新机器上使用当前项目时，只需要准备三件事：
+
+- 已安装 Windows 版 Claude Desktop。
+- 已安装 Python 3，并且 `python` 或 `py` 命令可用。
+- 已克隆或下载本仓库。
+
+推荐步骤：
+
+```powershell
+git clone https://github.com/Jyy1529/claude-desktop_win-zh_cn.git
+cd claude-desktop_win-zh_cn
+powershell -NoProfile -ExecutionPolicy Bypass -File .\claude-zh-cn.ps1
+```
+
+如果新机器不是 Microsoft Store / WindowsApps 安装，脚本会提示手动输入 Claude 的 `app` 目录。该目录下必须存在：
+
+```text
+app\resources\en-US.json
+```
+
+当前项目不依赖旧机器上的缓存或手工改动。安装时会重新写入中文资源、补语言白名单、注入 chunk 文案补丁和运行时可见文本修复。
 
 ## 卸载与恢复
 

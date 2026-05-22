@@ -261,8 +261,8 @@ def test_readme_no_longer_describes_dual_locale_modes() -> None:
     assert "install-windows-zh-cn" not in readme
     assert "uninstall-windows-zh-cn" not in readme
     assert "patch_claude_zh_cn_windowsapps.py" not in readme
-    assert "安装脚本会写入 `locale=zh-CN`" in readme
-    assert "会自动创建" in readme
+    assert "`locale=zh-CN`" in readme
+    assert "当前脚本会直接修改已安装 Claude app 目录" in readme
 
 
 def test_restore_removes_font_mirror_and_locale() -> None:
@@ -345,6 +345,8 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
         (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
         index = assets / "index-test.js"
         index.write_text('const locales=["en-US","fr-FR"];', encoding="utf-8")
+        index_2 = assets / "index-other.js"
+        index_2.write_text('const locales=["en-US","de-DE"];', encoding="utf-8")
         config_dir = appdata / "Claude-3p"
         config_dir.mkdir(parents=True)
         (config_dir / "config.json").write_text('{"keep":true}', encoding="utf-8")
@@ -373,6 +375,7 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
 
         assert result == 0
         assert '"zh-CN"' in index.read_text(encoding="utf-8")
+        assert '"zh-CN"' in index_2.read_text(encoding="utf-8")
         assert json.loads((config_dir / "config.json").read_text(encoding="utf-8"))["locale"] == "zh-CN"
         assert json.loads((resources / "zh-CN.json").read_text(encoding="utf-8-sig"))
         assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json").exists()
@@ -777,6 +780,18 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const ab="Cloud";',
                     'const ac="Environment";',
                     'const ad="Recents";',
+                    'const ae="Run tasks on a schedule or whenever you need them. Type /schedule in any existing task to set one up.";',
+                    'const af="Create your first scheduled task";',
+                    'const ag="Daily brief";',
+                    'const ah="Weekly review";',
+                    'const ai="New Projects";',
+                    'const aj="All projects";',
+                    'const ak="View all";',
+                    'const al="None";',
+                    'const am="1d";',
+                    'const an="3d";',
+                    'const ao="7d";',
+                    'const ap="30d";',
                     'const mode="system";',
                 ]
             ),
@@ -841,6 +856,18 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert "云端" in content
         assert "环境" in content
         assert "最近" in content
+        assert "按计划或在需要时运行任务" in content
+        assert "创建你的第一个计划任务" in content
+        assert "每日简报" in content
+        assert "每周回顾" in content
+        assert "新建项目" in content
+        assert "所有项目" in content
+        assert "查看全部" in content
+        assert "无" in content
+        assert "1天" in content
+        assert "3天" in content
+        assert "7天" in content
+        assert "30天" in content
         assert "Live artifacts" in content
         assert 'const u_old="Artifacts";' in content
         assert 'const u_label={label:"Live artifacts"};' in content

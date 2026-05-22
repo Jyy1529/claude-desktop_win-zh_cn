@@ -52,6 +52,20 @@ def find_assets_dir(app_resources: Path) -> Path | None:
     return candidates[0] if candidates else None
 
 
+def iter_assets_dirs(app_resources: Path) -> list[Path]:
+    """Return all discovered ion-dist/assets version directories."""
+    assets_root = app_resources / "ion-dist" / "assets"
+    if not assets_root.exists():
+        return []
+
+    dirs = {
+        path.parent
+        for path in assets_root.rglob("index-*.js")
+        if path.is_file()
+    }
+    return sorted(dirs, key=lambda path: str(path).lower(), reverse=True)
+
+
 def backup_file(path: Path, app_resources: Path) -> None:
     if not path.exists():
         return
@@ -106,17 +120,18 @@ def write_text_best_effort(path: Path, text: str, *, context: str) -> bool:
 
 
 def patch_whitelist(app_resources: Path) -> str | None:
-    """Add zh-CN to the language whitelist. Uses flexible matching."""
-    assets_dir = find_assets_dir(app_resources)
-    if assets_dir is None:
+    """Add zh-CN to every discovered language whitelist. Uses flexible matching."""
+    assets_dirs = iter_assets_dirs(app_resources)
+    if not assets_dirs:
         print("Warning: no index-*.js found; skipping whitelist patch")
         return None
 
-    candidates = sorted(assets_dir.glob("index-*.js"))
+    candidates = [path for assets_dir in assets_dirs for path in sorted(assets_dir.glob("index-*.js"))]
     if not candidates:
         print("Warning: no index-*.js found; skipping whitelist patch")
         return None
 
+    touched: list[str] = []
     for path in candidates:
         text = path.read_text(encoding="utf-8")
 
@@ -124,7 +139,8 @@ def patch_whitelist(app_resources: Path) -> str | None:
         backup_file(path, app_resources)
 
         if '"zh-CN"' in text:
-            return path.name  # already present
+            touched.append(path.name)
+            continue
 
         # Flexible match: find a JSON array starting with "en-US" that looks like a locale whitelist
         pattern = re.compile(r'(\["en-US"(?:,"[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,4})*")+)\]')
@@ -135,7 +151,10 @@ def patch_whitelist(app_resources: Path) -> str | None:
             patched_array = original_array[:-1] + ',"zh-CN"]'
             text = text.replace(original_array, patched_array, 1)
             if write_text_best_effort(path, text, context="whitelist patch"):
-                return path.name
+                touched.append(path.name)
+
+    if touched:
+        return ", ".join(touched)
 
     print("Warning: whitelist pattern not found in any index bundle")
     return None
