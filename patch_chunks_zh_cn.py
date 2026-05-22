@@ -139,15 +139,27 @@ svg text, svg tspan {{
     ["Dark", "深色"],
     ["sans", "无衬线"],
     ["Sans", "无衬线"],
+    ["Live artifacts", "实时工件"],
+    ["实时 Artifacts", "实时工件"],
+    ["Create dynamic artifacts that stay up-to-date using live data from your connectors.", "使用来自连接器的实时数据，创建保持更新的动态工件。"],
+    ["Create dynamic artifacts that stay up-to-date using live data from your connectors", "使用来自连接器的实时数据，创建保持更新的动态工件"],
+    ["Create dynamic artifacts that stay up to date using live data from your connectors.", "使用来自连接器的实时数据，创建保持更新的动态工件。"],
   ]);
+
+  const VISIBLE_TEXT_SUBSTRING_FIXES = [
+    [/实时\\s+Artifacts/g, "实时工件"],
+    [/实时\\s+Artifact/g, "实时工件"],
+    [/\\bArtifacts\\b/g, "工件"],
+    [/\\bArtifact\\b/g, "工件"],
+  ];
 
   function shouldFixTextNode(node) {{
     const parent = node.parentElement;
     if (!parent || parent.closest("script,style,[contenteditable='true']")) return false;
-    const scope = parent.closest("[role='dialog'],[role='menu'],[role='listbox'],main,section");
+    const scope = parent.closest("[role='dialog'],[role='menu'],[role='listbox'],[role='navigation'],main,section,nav,aside");
     if (!scope) return false;
     const context = scope.innerText || "";
-    return /(Appearance|外观|颜色模式|Color mode|聊天字体|Chat font|Font|字体)/.test(context);
+    return /(Appearance|外观|颜色模式|Color mode|聊天字体|Chat font|Font|字体|Artifact|Artifacts|Live artifacts|实时 Artifacts|实时工件|dynamic artifacts|动态工件|connectors|连接器|Scheduled|已安排|Customize|自定义)/.test(context);
   }}
 
   function fixVisibleText(root = document.body) {{
@@ -164,9 +176,16 @@ svg text, svg tspan {{
       if (!text) return;
       const trimmed = text.trim();
       const replacement = VISIBLE_TEXT_FIXES.get(trimmed);
-      if (!replacement) return;
+      if (replacement) {{
+        node.nodeValue = text.replace(trimmed, replacement);
+        return;
+      }}
       if (!shouldFixTextNode(node)) return;
-      node.nodeValue = text.replace(trimmed, replacement);
+      let next = text;
+      VISIBLE_TEXT_SUBSTRING_FIXES.forEach(([pattern, value]) => {{
+        next = next.replace(pattern, value);
+      }});
+      if (next !== text) node.nodeValue = next;
     }});
   }}
 
@@ -369,6 +388,54 @@ def find_claude_package() -> Path | None:
     return None
 
 
+def find_assets_dir(app_resources: Path) -> Path | None:
+    """Locate the active ion-dist/assets version directory."""
+    assets_root = app_resources / "ion-dist" / "assets"
+    if not assets_root.exists():
+        return None
+
+    candidates = sorted(
+        {path.parent for path in assets_root.rglob("index-*.js") if path.is_file()},
+        key=lambda path: str(path).lower(),
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
+def iter_assets_dirs(app_resources: Path) -> list[Path]:
+    """Return all discovered ion-dist/assets version directories."""
+    assets_root = app_resources / "ion-dist" / "assets"
+    if not assets_root.exists():
+        return []
+
+    dirs = {
+        path.parent
+        for path in assets_root.rglob("index-*.js")
+        if path.is_file()
+    }
+    return sorted(dirs, key=lambda path: str(path).lower(), reverse=True)
+
+
+def find_patch_targets(assets_dir: Path, pattern: str, replacements: list[tuple[str, str]]) -> list[Path]:
+    files = sorted(assets_dir.glob(pattern))
+    if files:
+        return files
+
+    needles = [old for old, new in replacements if old != new]
+    if not needles:
+        return []
+
+    targets: list[Path] = []
+    for path in sorted(assets_dir.glob("*.js")):
+        try:
+            content = path.read_text(encoding="utf-8")
+        except OSError:
+            continue
+        if any(needle in content for needle in needles):
+            targets.append(path)
+    return targets
+
+
 def backup_file(path: Path, assets_dir: Path) -> None:
     if not path.exists():
         return
@@ -488,6 +555,37 @@ def patch_font_runtime(assets_dir: Path) -> int:
     return changed
 
 
+def patch_assets_tree(app_resources: Path) -> int:
+    """Patch every discovered assets version directory."""
+    assets_dirs = iter_assets_dirs(app_resources)
+    if not assets_dirs:
+        print("Warning: assets root not found; skipping chunk patches")
+        return 0
+
+    total = 0
+    for assets_dir in assets_dirs:
+        for pattern, replacements in PATCHES.items():
+            files = find_patch_targets(assets_dir, pattern, replacements)
+
+            for fpath in files:
+                backup_file(fpath, assets_dir)
+                content = fpath.read_text(encoding="utf-8")
+                changed = 0
+                for old, new in replacements:
+                    if old in content and old != new:
+                        content = content.replace(old, new)
+                        changed += 1
+                if changed > 0 and write_text_best_effort(fpath, content, context="chunk replacement"):
+                    total += changed
+                    print(f"  {fpath.name}: {changed} replacements")
+
+        font_patches = patch_font_runtime(assets_dir)
+        if font_patches:
+            total += font_patches
+
+    return total
+
+
 PATCHES: dict[str, list[tuple[str, str]]] = {}
 
 # === 3P settings page (c71860c77-DNv5VYLZ.js) ===
@@ -523,6 +621,69 @@ PATCHES["c71860c77-DNv5VYLZ.js"] = [
     ('gateway:"Gateway"', 'gateway:"\u81ea\u5b9a\u4e49"'),
 ]
 
+# === Hardcoded UI strings that moved out of i18n JSON in recent builds ===
+# Use a deliberately non-matching file name so find_patch_targets scans JS chunks
+# and only touches files that actually contain one of these exact needles.
+PATCHES["__claude_zh_cn_hardcoded_ui__.js"] = [
+    ('"\u5de5\u4ef6"', '"Artifacts"'),
+    ('label:"\u5b9e\u65f6\u5de5\u4ef6"', 'label:"Live artifacts"'),
+    ('label:"\u5b9e\u65f6 Artifacts"', 'label:"Live artifacts"'),
+    ('"Theme"', '"\u4e3b\u9898"'),
+    ('"Interface font"', '"\u754c\u9762\u5b57\u4f53"'),
+    ('"Font for the Claude Code interface \u2014 menus, sidebar, and chat."', '"Claude Code \u754c\u9762\u5b57\u4f53\uff0c\u7528\u4e8e\u83dc\u5355\u3001\u4fa7\u8fb9\u680f\u548c\u804a\u5929\u3002"'),
+    ('"Transcript text size"', '"\u5bf9\u8bdd\u8bb0\u5f55\u6587\u5b57\u5927\u5c0f"'),
+    ('"Size of the conversation transcript text."', '"\u5bf9\u8bdd\u8bb0\u5f55\u6587\u5b57\u7684\u5927\u5c0f\u3002"'),
+    ('"Code appearance"', '"\u4ee3\u7801\u5916\u89c2"'),
+    ('"Set a custom monospace font for code and terminal."', '"\u4e3a\u4ee3\u7801\u548c\u7ec8\u7aef\u8bbe\u7f6e\u81ea\u5b9a\u4e49\u7b49\u5bbd\u5b57\u4f53\u3002"'),
+    ('"Local sessions"', '"\u672c\u5730\u4f1a\u8bdd"'),
+    ('"Enable remote control by default"', '"\u9ed8\u8ba4\u542f\u7528\u8fdc\u7a0b\u63a7\u5236"'),
+    ('"Automatically connect new local sessions to Remote Control so you can continue them from the CLI or claude.ai/code."', '"\u81ea\u52a8\u5c06\u65b0\u7684\u672c\u5730\u4f1a\u8bdd\u8fde\u63a5\u5230\u8fdc\u7a0b\u63a7\u5236\uff0c\u4ee5\u4fbf\u4f60\u53ef\u4ee5\u4ece CLI \u6216 claude.ai/code \u7ee7\u7eed\u4f7f\u7528\u3002"'),
+    ('"When Claude pushes changes to a branch, it automatically opens a pull request without asking first. Applies to remote sessions only."', '"Claude \u5c06\u66f4\u6539\u63a8\u9001\u5230\u5206\u652f\u65f6\uff0c\u4f1a\u81ea\u52a8\u6253\u5f00\u62c9\u53d6\u8bf7\u6c42\uff0c\u800c\u4e0d\u4f1a\u5148\u8be2\u95ee\u3002\u4ec5\u9002\u7528\u4e8e\u8fdc\u7a0b\u4f1a\u8bdd\u3002"'),
+    ('"Connectors have moved to Customize. Head there to browse, connect, and manage them."', '"\u8fde\u63a5\u5668\u5df2\u79fb\u81f3\u201c\u81ea\u5b9a\u4e49\u201d\u3002\u524d\u5f80\u90a3\u91cc\u6d4f\u89c8\u3001\u8fde\u63a5\u548c\u7ba1\u7406\u8fde\u63a5\u5668\u3002"'),
+    ('Connectors have moved to Customize. Head there to browse, connect, and manage them.', '\u8fde\u63a5\u5668\u5df2\u79fb\u81f3\u201c\u81ea\u5b9a\u4e49\u201d\u3002\u524d\u5f80\u90a3\u91cc\u6d4f\u89c8\u3001\u8fde\u63a5\u548c\u7ba1\u7406\u8fde\u63a5\u5668\u3002'),
+    ('"Skills have moved to Customize."', '"\u6280\u80fd\u5df2\u79fb\u81f3\u201c\u81ea\u5b9a\u4e49\u201d\u3002"'),
+    ('Skills have moved to Customize.', '\u6280\u80fd\u5df2\u79fb\u81f3\u201c\u81ea\u5b9a\u4e49\u201d\u3002'),
+    ('"Generate code, documents, and designs in a dedicated window alongside your conversation."', '"\u5728\u5bf9\u8bdd\u65c1\u7684\u4e13\u7528\u7a97\u53e3\u4e2d\u751f\u6210\u4ee3\u7801\u3001\u6587\u6863\u548c\u8bbe\u8ba1\u3002"'),
+    ('Generate code, documents, and designs in a dedicated window alongside your conversation.', '\u5728\u5bf9\u8bdd\u65c1\u7684\u4e13\u7528\u7a97\u53e3\u4e2d\u751f\u6210\u4ee3\u7801\u3001\u6587\u6863\u548c\u8bbe\u8ba1\u3002'),
+    ('"Create dynamic artifacts that stay up-to-date using live data from your connectors."', '"\u4f7f\u7528\u6765\u81ea\u8fde\u63a5\u5668\u7684\u5b9e\u65f6\u6570\u636e\uff0c\u521b\u5efa\u4fdd\u6301\u66f4\u65b0\u7684\u52a8\u6001\u5de5\u4ef6\u3002"'),
+    ('Create dynamic artifacts that stay up-to-date using live data from your connectors.', '\u4f7f\u7528\u6765\u81ea\u8fde\u63a5\u5668\u7684\u5b9e\u65f6\u6570\u636e\uff0c\u521b\u5efa\u4fdd\u6301\u66f4\u65b0\u7684\u52a8\u6001\u5de5\u4ef6\u3002'),
+    ('"Claude will keep these in mind across chats and Cowork within Anthropic\'s guidelines. Learn more"', '"Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa Anthropic \u7684\u6307\u5357\u3002\u4e86\u89e3\u66f4\u591a"'),
+    ('Claude will keep these in mind across chats and Cowork within Anthropic\'s guidelines. Learn more', 'Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa Anthropic \u7684\u6307\u5357\u3002\u4e86\u89e3\u66f4\u591a'),
+    ('"Claude will keep these in mind across chats and Cowork within Anthropic\u2019s guidelines. Learn more"', '"Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa Anthropic \u7684\u6307\u5357\u3002\u4e86\u89e3\u66f4\u591a"'),
+    ('Claude will keep these in mind across chats and Cowork within Anthropic\u2019s guidelines. Learn more', 'Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa Anthropic \u7684\u6307\u5357\u3002\u4e86\u89e3\u66f4\u591a'),
+    ('"Configured model not available"', '"\u914d\u7f6e\u7684\u6a21\u578b\u4e0d\u53ef\u7528"'),
+    ('"Your gateway couldn\'t serve claude-sonnet-4-6. This model may not be configured on your gateway, or access may be restricted."', '"\u4f60\u7684\u7f51\u5173\u65e0\u6cd5\u63d0\u4f9b claude-sonnet-4-6\u3002\u8be5\u6a21\u578b\u53ef\u80fd\u672a\u5728\u7f51\u5173\u4e0a\u914d\u7f6e\uff0c\u6216\u8bbf\u95ee\u53d7\u9650\u3002"'),
+    ('"Open Setup"', '"\u6253\u5f00\u8bbe\u7f6e\u5411\u5bfc"'),
+    ('"Sort by"', '"\u6392\u5e8f\u65b9\u5f0f"'),
+    ('"Recency"', '"\u6700\u8fd1"'),
+    ('"Alphabetically"', '"\u6309\u5b57\u6bcd\u987a\u5e8f"'),
+    ('"Created time"', '"\u521b\u5efa\u65f6\u95f4"'),
+    ('"Custom groups"', '"\u81ea\u5b9a\u4e49\u5206\u7ec4"'),
+    ('"Avatar"', '"\u5934\u50cf"'),
+    ('"Instructions for Claude"', '"\u7ed9 Claude \u7684\u6307\u4ee4"'),
+    ('"Preferences"', '"\u504f\u597d\u8bbe\u7f6e"'),
+    ('"Get notified when Claude has finished a response. Useful for long-running tasks."', '"Claude \u5b8c\u6210\u56de\u590d\u65f6\u63a5\u6536\u901a\u77e5\u3002\u5bf9\u957f\u65f6\u95f4\u8fd0\u884c\u7684\u4efb\u52a1\u5f88\u6709\u7528\u3002"'),
+    ('"You\u2019re running Claude through your organization\u2019s own inference provider (cc.freemodel.dev). Your conversations are sent there, not to Anthropic, and are governed by your organization\u2019s agreement with that provider."', '"\u4f60\u6b63\u5728\u901a\u8fc7\u7ec4\u7ec7\u81ea\u5df1\u7684\u63a8\u7406\u63d0\u4f9b\u65b9 (cc.freemodel.dev) \u8fd0\u884c Claude\u3002\u4f60\u7684\u5bf9\u8bdd\u4f1a\u53d1\u9001\u5230\u8be5\u63d0\u4f9b\u65b9\uff0c\u800c\u4e0d\u662f Anthropic\uff0c\u5e76\u53d7\u4f60\u7684\u7ec4\u7ec7\u4e0e\u8be5\u63d0\u4f9b\u65b9\u4e4b\u95f4\u534f\u8bae\u7684\u7ea6\u675f\u3002"'),
+    ('You\u2019re running Claude through your organization\u2019s own inference provider (cc.freemodel.dev). Your conversations are sent there, not to Anthropic, and are governed by your organization\u2019s agreement with that provider.', '\u4f60\u6b63\u5728\u901a\u8fc7\u7ec4\u7ec7\u81ea\u5df1\u7684\u63a8\u7406\u63d0\u4f9b\u65b9 (cc.freemodel.dev) \u8fd0\u884c Claude\u3002\u4f60\u7684\u5bf9\u8bdd\u4f1a\u53d1\u9001\u5230\u8be5\u63d0\u4f9b\u65b9\uff0c\u800c\u4e0d\u662f Anthropic\uff0c\u5e76\u53d7\u4f60\u7684\u7ec4\u7ec7\u4e0e\u8be5\u63d0\u4f9b\u65b9\u4e4b\u95f4\u534f\u8bae\u7684\u7ea6\u675f\u3002'),
+    ('"What Anthropic doesn\u2019t see"', '"Anthropic \u4e0d\u4f1a\u770b\u5230\u7684\u5185\u5bb9"'),
+    ('"Your prompts, Claude\u2019s responses, or any conversation content"', '"\u4f60\u7684\u63d0\u793a\u3001Claude \u7684\u56de\u590d\u6216\u4efb\u4f55\u5bf9\u8bdd\u5185\u5bb9"'),
+    ('"Your files, code, or workspace contents"', '"\u4f60\u7684\u6587\u4ef6\u3001\u4ee3\u7801\u6216\u5de5\u4f5c\u533a\u5185\u5bb9"'),
+    ('"Your identity or account details"', '"\u4f60\u7684\u8eab\u4efd\u6216\u8d26\u53f7\u8be6\u60c5"'),
+    ('"What Anthropic may receive (configured by your organization)"', '"Anthropic \u53ef\u80fd\u6536\u5230\u7684\u5185\u5bb9\uff08\u7531\u4f60\u7684\u7ec4\u7ec7\u914d\u7f6e\uff09"'),
+    ('"Crash reports and error diagnostics, so we can fix bugs"', '"\u5d29\u6e83\u62a5\u544a\u548c\u9519\u8bef\u8bca\u65ad\uff0c\u7528\u4e8e\u4fee\u590d\u95ee\u9898"'),
+    ('"Anonymous usage metrics including usage counts (not conversation content)"', '"\u5305\u542b\u4f7f\u7528\u6b21\u6570\u7684\u533f\u540d\u4f7f\u7528\u6307\u6807\uff08\u4e0d\u5305\u542b\u5bf9\u8bdd\u5185\u5bb9\uff09"'),
+    ('"Update-check requests, so the app can stay current"', '"\u66f4\u65b0\u68c0\u67e5\u8bf7\u6c42\uff0c\u7528\u4e8e\u4fdd\u6301\u5e94\u7528\u4e3a\u6700\u65b0\u7248\u672c"'),
+    ('"A diagnostic report, only if you explicitly choose \u201cSend to Anthropic\u201d"', '"\u8bca\u65ad\u62a5\u544a\uff0c\u4ec5\u5f53\u4f60\u660e\u786e\u9009\u62e9\u201c\u53d1\u9001\u7ed9 Anthropic\u201d\u65f6\u624d\u4f1a\u53d1\u9001"'),
+    ('"Tasks"', '"\u4efb\u52a1"'),
+    ('"Active"', '"\u6d3b\u8dc3"'),
+    ('"Archived"', '"\u5df2\u5f52\u6863"'),
+    ('"All"', '"\u5168\u90e8"'),
+    ('"Local"', '"\u672c\u5730"'),
+    ('"Cloud"', '"\u4e91\u7aef"'),
+    ('"Environment"', '"\u73af\u5883"'),
+    ('"Recents"', '"\u6700\u8fd1"'),
+]
+
 # === Sidebar navigation (cbc59a8af-DbOQVv5S.js) ===
 PATCHES["cbc59a8af-DbOQVv5S.js"] = [
     ('label:"\u804a\u5929"', 'label:"\u804a\u5929"'),
@@ -534,7 +695,6 @@ PATCHES["cbc59a8af-DbOQVv5S.js"] = [
     ('label:"Projects"', 'label:"\u9879\u76ee"'),
     ('label:"\u5df2\u5b89\u6392"', 'label:"\u5df2\u5b89\u6392"'),
     ('label:"Scheduled"', 'label:"\u5df2\u5b89\u6392"'),
-    ('label:"Live artifacts"', 'label:"\u5b9e\u65f6 Artifacts"'),
     ('label:"\u4efb\u52a1"', 'label:"\u4efb\u52a1"'),
     ('label:"Tasks"', 'label:"\u4efb\u52a1"'),
     ('label:"Pull Requests"', 'label:"\u62c9\u53d6\u8bf7\u6c42"'),
@@ -550,6 +710,7 @@ PATCHES["cbc59a8af-DbOQVv5S.js"] = [
     ('label:"Security"', 'label:"\u5b89\u5168"'),
     ('label:"\u81ea\u5b9a\u4e49"', 'label:"\u81ea\u5b9a\u4e49"'),
     ('label:"Customize"', 'label:"\u81ea\u5b9a\u4e49"'),
+    ('"Custom"', '"\u81ea\u5b9a\u4e49"'),
     ('label:"\u72b6\u6001"', 'label:"\u72b6\u6001"'),
     ('label:"Status"', 'label:"\u72b6\u6001"'),
     ('label:"\u73af\u5883"', 'label:"\u73af\u5883"'),
@@ -687,33 +848,15 @@ def main() -> int:
     if not app_dir or not app_dir.exists():
         raise SystemExit("Claude app directory not found.")
 
-    assets_dir = app_dir / "resources" / "ion-dist" / "assets" / "v1"
-    if not assets_dir.exists():
-        raise SystemExit(f"Assets dir not found: {assets_dir}")
+    assets_root = app_dir / "resources" / "ion-dist" / "assets"
+    if not assets_root.exists():
+        raise SystemExit(f"Assets root not found: {assets_root}")
 
     BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
-    total = 0
-
-    for pattern, replacements in PATCHES.items():
-        files = sorted(assets_dir.glob(pattern))
-        for fpath in files:
-            backup_file(fpath, assets_dir)
-            content = fpath.read_text(encoding="utf-8")
-            changed = 0
-            for old, new in replacements:
-                if old in content and old != new:
-                    content = content.replace(old, new)
-                    changed += 1
-            if changed > 0:
-                if write_text_best_effort(fpath, content, context="chunk replacement"):
-                    total += changed
-                    print(f"  {fpath.name}: {changed} replacements")
-
-    font_patches = patch_font_runtime(assets_dir)
+    total = patch_assets_tree(app_dir / "resources")
     config_mirrored = set_font_config_mirror()
 
     print(f"Done. Total chunk patches: {total}")
-    print(f"Font runtime patches: {font_patches}")
     print(f"Font config mirrored: {config_mirrored}")
     return 0
 

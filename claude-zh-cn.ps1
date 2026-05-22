@@ -105,6 +105,20 @@ function Resolve-ClaudePackage {
   }
 }
 
+function Get-AssetsVersionDirs {
+  param([string]$ResourcesDir)
+
+  $assetsRoot = Join-Path $ResourcesDir 'ion-dist\assets'
+  if (-not (Test-Path $assetsRoot)) {
+    return @()
+  }
+
+  $dirs = Get-ChildItem $assetsRoot -Recurse -File -Filter 'index-*.js' -ErrorAction SilentlyContinue |
+    ForEach-Object { $_.Directory.FullName } |
+    Sort-Object -Unique -Descending
+  return @($dirs)
+}
+
 function Set-ClaudePackageManual {
   Write-Host ''
   Write-Info '手动指定 Claude app 目录'
@@ -158,7 +172,7 @@ function Get-PatchStatus {
 
   # 检查白名单
   $hasWhitelist = $false
-  $indexFiles = Get-ChildItem (Join-Path $resDir 'ion-dist\assets\v1') -Filter 'index-*.js' -ErrorAction SilentlyContinue
+  $indexFiles = Get-ChildItem (Join-Path $resDir 'ion-dist\assets') -Recurse -File -Filter 'index-*.js' -ErrorAction SilentlyContinue
   foreach ($f in $indexFiles) {
     $content = [System.IO.File]::ReadAllText($f.FullName)
     if ($content.Contains('"zh-CN"')) { $hasWhitelist = $true; break }
@@ -292,7 +306,7 @@ function Invoke-Uninstall {
     }
 
     # 尝试从白名单中移除 zh-CN
-    $indexFiles = Get-ChildItem (Join-Path $resDir 'ion-dist\assets\v1') -Filter 'index-*.js' -ErrorAction SilentlyContinue
+    $indexFiles = Get-ChildItem (Join-Path $resDir 'ion-dist\assets') -Recurse -File -Filter 'index-*.js' -ErrorAction SilentlyContinue
     foreach ($f in $indexFiles) {
       $content = [System.IO.File]::ReadAllText($f.FullName)
       if ($content.Contains(',"zh-CN"')) {

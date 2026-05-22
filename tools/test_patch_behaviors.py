@@ -52,6 +52,11 @@ def test_font_runtime_replaces_legacy_injection() -> None:
     assert "中文字体预览" in content
     assert "function shouldFixTextNode" in content
     assert "if (!scope) return false" in content
+    assert "nav,aside" in content
+    assert "Create dynamic artifacts that stay up-to-date using live data from your connectors." in content
+    assert "使用来自连接器的实时数据，创建保持更新的动态工件。" in content
+    assert "VISIBLE_TEXT_SUBSTRING_FIXES" in content
+    assert "\\bArtifacts\\b" in content
     assert "document.body.innerText ||" not in content
     assert "body *" not in content
     assert "[class], [class] *" not in content
@@ -119,6 +124,86 @@ def test_brand_and_model_names_stay_in_english() -> None:
     assert "Claude.ai" in desktop["0vttuC3ieI"]
 
 
+def test_frontend_custom_label_is_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["WHcySsrbNk"] == "自定义"
+
+
+def test_frontend_google_connector_labels_are_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["7qYF66c9/s"] == "Google 文档"
+    assert data["GKdaNw6TF5"] == "Google 云端硬盘"
+    assert data["kjenxGoM59"] == "Google 日历"
+
+
+def test_frontend_platform_labels_are_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["97ZyLDa56/"] == "Linux（x64）"
+
+
+def test_frontend_short_labels_are_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["/XN7yFRPEj"] == "持续集成"
+    assert data["SlryxY5wVT"] == "持续集成 {done}/{total}"
+    assert data["WGlDvlB8U9"] == "本月至今"
+    assert data["t0clKd0XbN"] == "Windows（arm64）"
+    assert data["UfB5Krvt4G"] == "Windows（x64）"
+
+
+def test_frontend_google_brand_labels_are_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["+1VvTZ4Z9R"] == "Google Play 商店"
+    assert data["4b42RZpF6C"] == "GitHub 企业版"
+    assert data["g+MI9/sOCK"] == "Google 标志"
+    assert data["lzgH40+3EL"] == "谷歌"
+
+
+def test_frontend_foundry_labels_are_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["LPT6OcwxnK"] == "Azure AI 工坊"
+    assert data["dyvIkP3vGQ"] == "Microsoft 工坊"
+
+
+def test_frontend_cloud_labels_are_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["GIh+053to7"] == "谷歌 Vertex AI"
+    assert data["Iu7EbVgyNK"] == "谷歌 Vertex AI"
+    assert data["QlBsxMNFtc"] == "谷歌云"
+    assert data["3dX6WT/wMl"] == "亚马逊云科技"
+    assert data["voYGE9Q356"] == "亚马逊 Bedrock"
+
+
+def test_frontend_provider_entry_labels_are_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["2hslSeuDXe"] == "谷歌邮箱"
+    assert data["VCayjOoQll"] == "MCP"
+    assert data["wRHZIadJ0A"] == "工坊"
+
+
+def test_frontend_remaining_english_usage_labels_are_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["5RasbgfW2t"] == "研究实验室：{before, number} → {after, number}"
+    assert data["FPiM1VWudZ"] == "高级版：{before, number} → {after, number}"
+    assert data["FvNS5NICAF"] == "非营利版：{before, number} → {after, number}"
+    assert data["TvOAFWIHcJ"] == "标准版：{before, number} → {after, number}"
+    assert data["gcZsjEP/3M"] == "高级非营利版：{before, number} → {after, number}"
+    assert data["u6WcCZIyyg"] == "研究实验室高级版：{before, number} → {after, number}"
+    assert data["Stq39HkM0l"] == "你使用的 token 约为 {book} 的 {times} 倍。"
+    assert data["m4VXIz3JrC"] == "你使用的 token 数量大约相当于 {book}。"
+
+
+def test_frontend_text_size_extreme_label_is_translated_as_extra_high() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["kDEj60CmLq"] == "超高"
+    assert data["kkjl2vQekD"] == "超高"
+
+
+def test_frontend_webhook_label_is_translated() -> None:
+    data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    assert data["GnZZHNfzw2"] == "网络钩子"
+    assert data["hf7LJXNeKT"] == "网络钩子"
+
+
 def test_desktop_menu_translations() -> None:
     data = json.loads((ROOT / "resources" / "desktop-zh-CN.json").read_text(encoding="utf-8-sig"))
 
@@ -176,7 +261,8 @@ def test_readme_no_longer_describes_dual_locale_modes() -> None:
     assert "install-windows-zh-cn" not in readme
     assert "uninstall-windows-zh-cn" not in readme
     assert "patch_claude_zh_cn_windowsapps.py" not in readme
-    assert "安装脚本会写入 `locale=zh-CN`。" in readme
+    assert "安装脚本会写入 `locale=zh-CN`" in readme
+    assert "会自动创建" in readme
 
 
 def test_restore_removes_font_mirror_and_locale() -> None:
@@ -290,6 +376,50 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
         assert json.loads((config_dir / "config.json").read_text(encoding="utf-8"))["locale"] == "zh-CN"
         assert json.loads((resources / "zh-CN.json").read_text(encoding="utf-8-sig"))
         assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json").exists()
+
+
+def test_json_patch_creates_config_and_locale_when_missing() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        (resources / "ion-dist" / "i18n" / "statsig").mkdir(parents=True)
+        assets.mkdir(parents=True)
+        (resources / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        index = assets / "index-test.js"
+        index.write_text('const locales=["en-US","fr-FR"];', encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_json = load_module("patch_windowsapps_json_only_missing_config", ROOT / "patch_windowsapps_json_only.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_windowsapps_json_only.py", "--app-dir", str(app_dir)]
+            try:
+                result = patch_json.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        config_path = appdata / "Claude-3p" / "config.json"
+        assert result == 0
+        assert config_path.exists()
+        assert json.loads(config_path.read_text(encoding="utf-8")) == {"locale": "zh-CN"}
 
 
 def test_json_patch_whitelist_write_permission_error_is_retried() -> None:
@@ -558,6 +688,163 @@ def test_chunk_patch_translates_keep_awake_label() -> None:
         assert result == 0
         assert "Keep awake" not in index.read_text(encoding="utf-8")
         assert "保持唤醒" in index.read_text(encoding="utf-8")
+
+
+def test_chunk_patch_translates_custom_label() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        assets = app_dir / "resources" / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+        index = assets / "index-test.js"
+        index.write_text('const label="Custom";', encoding="utf-8")
+
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text("{}", encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_chunks = load_module("patch_chunks_zh_cn_custom_label", ROOT / "patch_chunks_zh_cn.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_chunks_zh_cn.py", "--app-dir", str(app_dir)]
+            try:
+                result = patch_chunks.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        assert result == 0
+        assert 'const label="Custom";' not in index.read_text(encoding="utf-8")
+        assert "自定义" in index.read_text(encoding="utf-8")
+
+
+def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        assets = app_dir / "resources" / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+        index = assets / "index-test.js"
+        index.write_text(
+            "\n".join(
+                [
+                    'const a="Theme";',
+                    'const b="Interface font";',
+                    'const c="Transcript text size";',
+                    'const d="Code appearance";',
+                    'const e="Local sessions";',
+                    'const f="Enable remote control by default";',
+                    'const g="Connectors have moved to Customize. Head there to browse, connect, and manage them.";',
+                    'const h="Skills have moved to Customize.";',
+                    'const i="Configured model not available";',
+                    'const j="Open Setup";',
+                    'const k="Sort by";',
+                    'const l="Alphabetically";',
+                    'const m="Created time";',
+                    'const n="Custom groups";',
+                    'const o="Avatar";',
+                    'const p="Instructions for Claude";',
+                    'const q="Preferences";',
+                    'const r="What Anthropic doesn\u2019t see";',
+                    'const s="Claude will keep these in mind across chats and Cowork within Anthropic\'s guidelines. Learn more";',
+                    'const t="You\u2019re running Claude through your organization\u2019s own inference provider (cc.freemodel.dev). Your conversations are sent there, not to Anthropic, and are governed by your organization\u2019s agreement with that provider.";',
+                    'const u="Live artifacts";',
+                    'const u_old="工件";',
+                    'const u_label={label:"实时工件"};',
+                    'const v="Generate code, documents, and designs in a dedicated window alongside your conversation.";',
+                    'const w1="Create dynamic artifacts that stay up-to-date using live data from your connectors.";',
+                    'const w="Tasks";',
+                    'const x="Active";',
+                    'const y="Archived";',
+                    'const z="All";',
+                    'const aa="Local";',
+                    'const ab="Cloud";',
+                    'const ac="Environment";',
+                    'const ad="Recents";',
+                    'const mode="system";',
+                ]
+            ),
+            encoding="utf-8",
+        )
+
+        config_dir = appdata / "Claude-3p"
+        config_dir.mkdir(parents=True)
+        (config_dir / "config.json").write_text("{}", encoding="utf-8")
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_chunks = load_module("patch_chunks_zh_cn_settings_ui", ROOT / "patch_chunks_zh_cn.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_chunks_zh_cn.py", "--app-dir", str(app_dir)]
+            try:
+                result = patch_chunks.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        content = index.read_text(encoding="utf-8")
+        assert result == 0
+        assert "界面字体" in content
+        assert "对话记录文字大小" in content
+        assert "代码外观" in content
+        assert "本地会话" in content
+        assert "默认启用远程控制" in content
+        assert "连接器已移至" in content
+        assert "技能已移至" in content
+        assert "配置的模型不可用" in content
+        assert "打开设置向导" in content
+        assert "排序方式" in content
+        assert "按字母顺序" in content
+        assert "创建时间" in content
+        assert "自定义分组" in content
+        assert "头像" in content
+        assert "给 Claude 的指令" in content
+        assert "偏好设置" in content
+        assert "Anthropic 不会看到的内容" in content
+        assert "Claude 会在聊天和 Cowork 中记住这些内容" in content
+        assert "组织自己的推理提供方" in content
+        assert "实时工件" in content
+        assert "生成代码、文档和设计" in content
+        assert "创建保持更新的动态工件" in content
+        assert "任务" in content
+        assert "活跃" in content
+        assert "已归档" in content
+        assert "全部" in content
+        assert "本地" in content
+        assert "云端" in content
+        assert "环境" in content
+        assert "最近" in content
+        assert "Live artifacts" in content
+        assert 'const u_old="Artifacts";' in content
+        assert 'const u_label={label:"Live artifacts"};' in content
+        assert 'const mode="system";' in content
 
 
 def test_chunk_patch_backup_copy_permission_error_is_retried() -> None:
@@ -890,6 +1177,7 @@ def main() -> int:
         test_restore_removes_font_mirror_and_locale,
         test_chunk_patch_translates_keep_awake_label,
         test_json_patch_copies_resources_and_patches_locale_whitelist,
+        test_json_patch_creates_config_and_locale_when_missing,
         test_restore_restores_json_and_chunk_backups,
         test_restore_main_removes_installed_zh_cn_artifacts,
         test_restore_ignores_legacy_full_patch_when_current_backups_exist,

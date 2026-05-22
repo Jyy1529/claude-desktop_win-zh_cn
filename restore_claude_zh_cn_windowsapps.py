@@ -36,6 +36,20 @@ def find_claude_package() -> Path | None:
     return None
 
 
+def iter_assets_dirs(app_resources: Path) -> list[Path]:
+    """Return all discovered ion-dist/assets version directories."""
+    assets_root = app_resources / "ion-dist" / "assets"
+    if not assets_root.exists():
+        return []
+
+    dirs = {
+        path.parent
+        for path in assets_root.rglob("index-*.js")
+        if path.is_file()
+    }
+    return sorted(dirs, key=lambda path: str(path).lower(), reverse=True)
+
+
 def restore_from(backup_root: Path, app_resources: Path) -> int:
     """Restore files from backup to app/resources."""
     restored = 0
@@ -112,61 +126,65 @@ def remove_zh_cn_artifacts(app_resources: Path) -> tuple[int, int]:
         except OSError as e:
             print(f"Warning: cannot delete {path}: {e}; skipping")
 
-    assets_dir = app_resources / "ion-dist" / "assets" / "v1"
-    for path in sorted(assets_dir.glob("index-*.js")):
-        try:
-            content = path.read_text(encoding="utf-8")
-        except OSError as e:
-            print(f"Warning: cannot read {path}: {e}; skipping")
-            continue
-
-        if ',"zh-CN"' not in content:
-            continue
-
-        if write_text_best_effort(
-            path,
-            content.replace(',"zh-CN"', ''),
-            context="remove zh-CN whitelist",
-        ):
-            scrubbed += 1
-
-    return deleted, scrubbed
-
-
-def revert_chunk_translations(app_resources: Path) -> int:
-    """Best-effort reverse of chunk label replacements when backups are already patched."""
-    assets_dir = app_resources / "ion-dist" / "assets" / "v1"
-    if not assets_dir.exists():
-        return 0
-
-    changed_files = 0
-    for pattern, replacements in patch_chunks_zh_cn.PATCHES.items():
-        files = sorted(assets_dir.glob(pattern))
-        for path in files:
+    for assets_dir in iter_assets_dirs(app_resources):
+        for path in sorted(assets_dir.glob("index-*.js")):
             try:
                 content = path.read_text(encoding="utf-8")
             except OSError as e:
                 print(f"Warning: cannot read {path}: {e}; skipping")
                 continue
 
-            changed = False
-            for old, new in replacements:
-                if old == new:
-                    continue
-                if new in content:
-                    content = content.replace(new, old)
-                    changed = True
+            if ',"zh-CN"' not in content:
+                continue
 
-            if changed and write_text_best_effort(path, content, context="revert chunk translations"):
-                changed_files += 1
+            if write_text_best_effort(
+                path,
+                content.replace(',"zh-CN"', ''),
+                context="remove zh-CN whitelist",
+            ):
+                scrubbed += 1
+
+    return deleted, scrubbed
+
+
+def revert_chunk_translations(app_resources: Path) -> int:
+    """Best-effort reverse of chunk label replacements when backups are already patched."""
+    assets_dirs = iter_assets_dirs(app_resources)
+    if not assets_dirs:
+        return 0
+
+    changed_files = 0
+    for assets_dir in assets_dirs:
+        for pattern, replacements in patch_chunks_zh_cn.PATCHES.items():
+            files = sorted(assets_dir.glob(pattern))
+            if not files and pattern == "index-*.js":
+                files = [path for path in sorted(assets_dir.glob("*.js")) if path.is_file()]
+
+            for path in files:
+                try:
+                    content = path.read_text(encoding="utf-8")
+                except OSError as e:
+                    print(f"Warning: cannot read {path}: {e}; skipping")
+                    continue
+
+                changed = False
+                for old, new in replacements:
+                    if old == new:
+                        continue
+                    if new in content:
+                        content = content.replace(new, old)
+                        changed = True
+
+                if changed and write_text_best_effort(path, content, context="revert chunk translations"):
+                    changed_files += 1
 
     return changed_files
 
 
 def cleanup_known_chunk_residue_tokens(app_resources: Path) -> int:
     """Fallback cleanup for known visible labels that may survive stale backups."""
-    assets_dir = app_resources / "ion-dist" / "assets" / "v1"
-    if not assets_dir.exists():
+    assets_dirs = iter_assets_dirs(app_resources)
+    if not assets_dirs:
         return 0
 
     cleanup_pairs = [
@@ -182,6 +200,9 @@ def cleanup_known_chunk_residue_tokens(app_resources: Path) -> int:
         ('baseDescription:"\u65b0\u5efa\u4efb\u52a1"', 'baseDescription:"New task"'),
         ('label:"\u4ee3\u7801"', 'label:"Code"'),
         ('label:"\u81ea\u5b9a\u4e49"', 'label:"Customize"'),
+        ('label:"\u5b9e\u65f6\u5de5\u4ef6"', 'label:"Live artifacts"'),
+        ('label:"\u5b9e\u65f6 Artifacts"', 'label:"Live artifacts"'),
+        ('"\u5de5\u4ef6"', '"Artifacts"'),
         ('children:"\u5df2\u56fa\u5b9a"', 'children:"Pinned"'),
         ('children:"\u62d6\u62fd\u56fa\u5b9a"', 'children:"Drag to pin"'),
         ('const Co="\u6700\u8fd1"', 'const Co="Recents"'),
@@ -189,21 +210,22 @@ def cleanup_known_chunk_residue_tokens(app_resources: Path) -> int:
     ]
 
     changed_files = 0
-    for path in sorted(assets_dir.glob("index-*.js")):
-        try:
-            content = path.read_text(encoding="utf-8")
-        except OSError as e:
-            print(f"Warning: cannot read {path}: {e}; skipping")
-            continue
+    for assets_dir in assets_dirs:
+        for path in sorted(assets_dir.glob("index-*.js")):
+            try:
+                content = path.read_text(encoding="utf-8")
+            except OSError as e:
+                print(f"Warning: cannot read {path}: {e}; skipping")
+                continue
 
-        changed = False
-        for old, new in cleanup_pairs:
-            if old in content:
-                content = content.replace(old, new)
-                changed = True
+            changed = False
+            for old, new in cleanup_pairs:
+                if old in content:
+                    content = content.replace(old, new)
+                    changed = True
 
-        if changed and write_text_best_effort(path, content, context="cleanup chunk residues"):
-            changed_files += 1
+            if changed and write_text_best_effort(path, content, context="cleanup chunk residues"):
+                changed_files += 1
 
     return changed_files
 

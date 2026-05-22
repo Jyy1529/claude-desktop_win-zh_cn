@@ -38,6 +38,20 @@ def find_claude_package() -> Path | None:
     return None
 
 
+def find_assets_dir(app_resources: Path) -> Path | None:
+    """Locate the active ion-dist/assets version directory."""
+    assets_root = app_resources / "ion-dist" / "assets"
+    if not assets_root.exists():
+        return None
+
+    candidates = sorted(
+        {path.parent for path in assets_root.rglob("index-*.js") if path.is_file()},
+        key=lambda path: str(path).lower(),
+        reverse=True,
+    )
+    return candidates[0] if candidates else None
+
+
 def backup_file(path: Path, app_resources: Path) -> None:
     if not path.exists():
         return
@@ -93,7 +107,11 @@ def write_text_best_effort(path: Path, text: str, *, context: str) -> bool:
 
 def patch_whitelist(app_resources: Path) -> str | None:
     """Add zh-CN to the language whitelist. Uses flexible matching."""
-    assets_dir = app_resources / "ion-dist" / "assets" / "v1"
+    assets_dir = find_assets_dir(app_resources)
+    if assets_dir is None:
+        print("Warning: no index-*.js found; skipping whitelist patch")
+        return None
+
     candidates = sorted(assets_dir.glob("index-*.js"))
     if not candidates:
         print("Warning: no index-*.js found; skipping whitelist patch")
@@ -126,14 +144,14 @@ def patch_whitelist(app_resources: Path) -> str | None:
 def set_locale() -> bool:
     """Set locale=zh-CN in user config."""
     if not CONFIG_PATH.exists():
-        print(f"Warning: config not found at {CONFIG_PATH}; skipping locale")
-        return False
-
-    try:
-        data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError) as e:
-        print(f"Warning: cannot parse config: {e}; skipping locale")
-        return False
+        CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        data = {}
+    else:
+        try:
+            data = json.loads(CONFIG_PATH.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as e:
+            print(f"Warning: cannot parse config: {e}; skipping locale")
+            return False
 
     if data.get("locale") == "zh-CN":
         return True
