@@ -112,6 +112,8 @@ def test_frontend_resource_key_translations() -> None:
     assert data["dc/vp/cKwc"] == "已过去 {minutes} 分钟"
     assert data["2Oz8jH5TAw"] == "已过去 {hours} 小时 {minutes} 分钟"
     assert data["zElqHZzItw"] == "发一个讯息…"
+    assert data["5oTa1gWQsk"] == "允许的出站主机"
+    assert data["CCUxBOb3va"] == "禁用 claude:// 深度链接处理"
 
 
 def test_frontend_organization_config_translations() -> None:
@@ -925,6 +927,10 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const policy={allow:"allow",ask:"ask",blocked:"blocked"};',
                     'const greeting="Hi, I\'m Claude. How can I help you today?";',
                     'const greeting_bad="Hi, I\'m Claude. How can I helpyou today?";',
+                    'const dev_menu="Enable Main Process Debugger";',
+                    'const perf="Record Performance Trace";',
+                    'const heap="Write Main Process Heap Snapshot";',
+                    'const memory="Record Memory Trace (auto-stop)";',
                     'const mode="system";',
                 ]
             ),
@@ -1022,6 +1028,10 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert 'const mode="system";' in content
         assert "你好，我是 Claude。今天我能帮你什么？" in content
         assert "Hi, I'm Claude. How can I help" not in content
+        assert "启用主进程调试器" in content
+        assert "记录性能跟踪" in content
+        assert "写入主进程堆快照" in content
+        assert "记录内存跟踪（自动停止）" in content
         assert 'const policy={allow:"allow",ask:"ask",blocked:"blocked"};' in content
         assert '["allow", "允许"]' in content
         assert '["ask", "询问"]' in content

@@ -1482,6 +1482,7 @@
   "5nFPdAPjP7": "取消以停止定期计费。在 {productName} 之前，你仍然可以使用 {nextChargeDate}。",
   "5nJVpwt8gP": "一切准备就绪...",
   "5o5oXIn+f2": "允许Claude使用{toolName}吗？",
+  "5oTa1gWQsk": "允许的出站主机",
   "5oVyX6JYv4": "你可以帮助Claude进步",
   "5ojHxGORrY": "清除内存？",
   "5pFoH6SNFL": "你可以稍后在连接器中更改此设置。",
@@ -12342,6 +12343,7 @@
   "zzOZLy0ngS": "验证你的代码时出错。如果问题仍然存在，请<link>联系支持人员</link>寻求帮助。",
   "zzp3aYxskJ": "无法开始聊天。你可以再试一次。",
   "CJsWpnYD4": "开始处理你的待办事项吧"
+  ,"CCUxBOb3va":"禁用 claude:// 深度链接处理"
   ,"0X/lTj2Hvv":"产品使用分析和诊断报告上传。不包含消息内容。"
   ,"0hPFsTuQ1X":"每次向已配置提供方发送推理请求时附加的额外 HTTP 标头。用于租户路由、组织 ID、Bedrock Guardrails 等。"
   ,"1QKV7FS8FM":"允许用户添加 MCP 服务器"
