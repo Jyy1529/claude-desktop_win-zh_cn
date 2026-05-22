@@ -40,7 +40,6 @@ def test_font_runtime_replaces_legacy_injection() -> None:
             "console.log('after legacy');\n",
             encoding="utf-8",
         )
-
         changed = patch_chunks.patch_font_runtime(assets)
         content = index.read_text(encoding="utf-8")
 
@@ -744,6 +743,7 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assets = app_dir / "resources" / "ion-dist" / "assets" / "v1"
         assets.mkdir(parents=True)
         index = assets / "index-test.js"
+        sidebar = assets / "cbc59a8af-DbOQVv5S.js"
         index.write_text(
             "\n".join(
                 [
@@ -770,6 +770,10 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const u="Live artifacts";',
                     'const u_old="工件";',
                     'const u_label={label:"实时工件"};',
+                    'const project_nav={label:"Projects"};',
+                    'const project_old={label:"项目"};',
+                    'const project_group=["project","Project"];',
+                    'const project_group_old=["project","项目"];',
                     'const v="Generate code, documents, and designs in a dedicated window alongside your conversation.";',
                     'const w1="Create dynamic artifacts that stay up-to-date using live data from your connectors.";',
                     'const w="Tasks";',
@@ -797,6 +801,7 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
             ),
             encoding="utf-8",
         )
+        sidebar.write_text('const nav={label:"项目"};\n', encoding="utf-8")
 
         config_dir = appdata / "Claude-3p"
         config_dir.mkdir(parents=True)
@@ -825,6 +830,7 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                 os.environ["APPDATA"] = old_appdata
 
         content = index.read_text(encoding="utf-8")
+        sidebar_content = sidebar.read_text(encoding="utf-8")
         assert result == 0
         assert "界面字体" in content
         assert "对话记录文字大小" in content
@@ -871,6 +877,14 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert "Live artifacts" in content
         assert 'const u_old="Artifacts";' in content
         assert 'const u_label={label:"Live artifacts"};' in content
+        assert 'const project_nav={label:"Projects"};' in content
+        assert 'const project_old={label:"Projects"};' in content
+        assert 'const project_group=["project","Project"];' in content
+        assert 'const project_group_old=["project","Project"];' in content
+        assert 'label:"项目"' not in content
+        assert '["project","项目"]' not in content
+        assert 'label:"Projects"' in sidebar_content
+        assert 'label:"项目"' not in sidebar_content
         assert 'const mode="system";' in content
 
 
