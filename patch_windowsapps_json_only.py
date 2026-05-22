@@ -27,6 +27,14 @@ BACKUP_ROOT = Path(os.environ["LOCALAPPDATA"]) / "Claude-zh-CN-official-backup" 
 CONFIG_PATH = Path(os.environ["APPDATA"]) / "Claude-3p" / "config.json"
 
 
+DESKTOP_EN_US_FALLBACK_KEYS = {
+    "7fdcqxofEs",  # Exit
+    "DQTgg21B7g",  # Show App
+    "dKX0bpR+a2",  # Quit
+    "oQuOiX24pp",  # Quit
+}
+
+
 def find_claude_package() -> Path | None:
     """Auto-detect Claude package under WindowsApps."""
     base = Path(r"C:\Program Files\WindowsApps")
@@ -183,6 +191,39 @@ def set_locale() -> bool:
     )
 
 
+def patch_desktop_en_us_fallback(app_resources: Path) -> int:
+    """Patch desktop tray labels that may still be read from en-US resources."""
+    en_us_path = app_resources / "en-US.json"
+    zh_cn_path = RESOURCES / "desktop-zh-CN.json"
+    if not en_us_path.exists() or not zh_cn_path.exists():
+        return 0
+
+    try:
+        en_us = json.loads(en_us_path.read_text(encoding="utf-8-sig"))
+        zh_cn = json.loads(zh_cn_path.read_text(encoding="utf-8-sig"))
+    except (json.JSONDecodeError, OSError) as e:
+        print(f"Warning: cannot patch desktop en-US fallback: {e}; skipping")
+        return 0
+
+    changed = 0
+    for key in DESKTOP_EN_US_FALLBACK_KEYS:
+        if key in en_us and key in zh_cn and en_us[key] != zh_cn[key]:
+            en_us[key] = zh_cn[key]
+            changed += 1
+
+    if not changed:
+        return 0
+
+    backup_file(en_us_path, app_resources)
+    if not write_text_best_effort(
+        en_us_path,
+        json.dumps(en_us, ensure_ascii=False, indent=2) + "\n",
+        context="desktop en-US fallback patch",
+    ):
+        return 0
+    return changed
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Patch Claude Desktop with zh-CN resources")
     parser.add_argument("--app-dir", type=str, default=None,
@@ -223,13 +264,17 @@ def main() -> int:
     # Step 2: Patch whitelist
     wl_file = patch_whitelist(app_resources)
 
-    # Step 3: Set locale
+    # Step 3: Patch desktop fallback labels used before zh-CN is loaded
+    fallback_labels = patch_desktop_en_us_fallback(app_resources)
+
+    # Step 4: Set locale
     locale_set = set_locale()
 
     print("Done")
     print(f"App dir: {app_dir}")
     print(f"Copied json resources: {copied}")
     print(f"Whitelist patched: {wl_file or 'skipped'}")
+    print(f"Desktop en-US fallback labels patched: {fallback_labels}")
     print(f"Locale set: {locale_set}")
     print(f"Backup root: {BACKUP_ROOT}")
     return 0

@@ -101,6 +101,9 @@ def test_frontend_resource_key_translations() -> None:
     assert "Haiku" in data["YUXhG8b7by"] or "Sonnet" in data["YUXhG8b7by"]
     assert "Opus" in data["R+afEr3zIZ"]
     assert "Opus" in data["//ixi/rP/O"]
+    assert data["aDVRC23jKg"] == "技能已移至<link>自定义</link>。"
+    assert data["gshbVTjZni"] == "连接器已移至<link>自定义</link>。前往那里浏览、连接和管理连接器。"
+    assert data["tgkg69DKCl"] == "你正在通过组织自己的推理提供方 ({providerDisplayName}) 运行 Claude。你的对话会发送到该提供方，而不是 Anthropic，并受你的组织与该提供方之间协议的约束。"
 
 
 def test_brand_and_model_names_stay_in_english() -> None:
@@ -340,6 +343,18 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
         (resources / "ion-dist" / "i18n" / "statsig").mkdir(parents=True)
         assets.mkdir(parents=True)
         (resources / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "en-US.json").write_text(
+            json.dumps(
+                {
+                    "7fdcqxofEs": "Exit",
+                    "DQTgg21B7g": "Show App",
+                    "dKX0bpR+a2": "Quit",
+                    "oQuOiX24pp": "Quit",
+                    "keep": "Keep",
+                }
+            ),
+            encoding="utf-8",
+        )
         (resources / "ion-dist" / "i18n" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
         (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
         index = assets / "index-test.js"
@@ -377,7 +392,55 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
         assert '"zh-CN"' in index_2.read_text(encoding="utf-8")
         assert json.loads((config_dir / "config.json").read_text(encoding="utf-8"))["locale"] == "zh-CN"
         assert json.loads((resources / "zh-CN.json").read_text(encoding="utf-8-sig"))
+        en_us = json.loads((resources / "en-US.json").read_text(encoding="utf-8-sig"))
+        assert en_us["7fdcqxofEs"] == "退出"
+        assert en_us["DQTgg21B7g"] == "显示应用"
+        assert en_us["dKX0bpR+a2"] == "退出"
+        assert en_us["oQuOiX24pp"] == "退出"
+        assert en_us["keep"] == "Keep"
         assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json").exists()
+        assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "en-US.json").exists()
+
+
+def test_desktop_en_us_fallback_patch_only_updates_tray_labels() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        app_resources = tmp_path / "Claude" / "app" / "resources"
+        app_resources.mkdir(parents=True)
+        en_us_path = app_resources / "en-US.json"
+        en_us_path.write_text(
+            json.dumps(
+                {
+                    "7fdcqxofEs": "Exit",
+                    "DQTgg21B7g": "Show App",
+                    "dKX0bpR+a2": "Quit",
+                    "oQuOiX24pp": "Quit",
+                    "PW5U8NgTto": "Open MCP Log File...",
+                }
+            ),
+            encoding="utf-8",
+        )
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        try:
+            patch_json = load_module("patch_windowsapps_json_only_fallback", ROOT / "patch_windowsapps_json_only.py")
+            changed = patch_json.patch_desktop_en_us_fallback(app_resources)
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+
+        data = json.loads(en_us_path.read_text(encoding="utf-8-sig"))
+
+    assert changed == 4
+    assert data["7fdcqxofEs"] == "退出"
+    assert data["DQTgg21B7g"] == "显示应用"
+    assert data["dKX0bpR+a2"] == "退出"
+    assert data["oQuOiX24pp"] == "退出"
+    assert data["PW5U8NgTto"] == "Open MCP Log File..."
 
 
 def test_json_patch_creates_config_and_locale_when_missing() -> None:
@@ -754,7 +817,9 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const e="Local sessions";',
                     'const f="Enable remote control by default";',
                     'const g="Connectors have moved to Customize. Head there to browse, connect, and manage them.";',
+                    'const g2="Connectors have moved to <link>Customize</link>. Head there to browse, connect, and manage them.";',
                     'const h="Skills have moved to Customize.";',
+                    'const h2="Skills have moved to <link>Customize</link>.";',
                     'const i="Configured model not available";',
                     'const j="Open Setup";',
                     'const k="Sort by";',
@@ -838,7 +903,9 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         assert "本地会话" in content
         assert "默认启用远程控制" in content
         assert "连接器已移至" in content
+        assert "连接器已移至<link>自定义</link>" in content
         assert "技能已移至" in content
+        assert "技能已移至<link>自定义</link>" in content
         assert "配置的模型不可用" in content
         assert "打开设置向导" in content
         assert "排序方式" in content
