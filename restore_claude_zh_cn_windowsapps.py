@@ -23,6 +23,7 @@ BACKUP_BASE = Path(os.environ["LOCALAPPDATA"]) / "Claude-zh-CN-official-backup"
 BACKUP_JSON_ONLY = BACKUP_BASE / "json-only"
 CONFIG_PATH = Path(os.environ["APPDATA"]) / "Claude-3p" / "config.json"
 FONT_KEY = "claudeZhCnFont"
+SKIP_RESTORE_NAMES = {"app.asar"}
 
 
 def find_claude_package() -> Path | None:
@@ -57,6 +58,8 @@ def restore_from(backup_root: Path, app_resources: Path) -> int:
         if not src.is_file():
             continue
         rel = src.relative_to(backup_root)
+        if rel.name in SKIP_RESTORE_NAMES:
+            continue
         dst = app_resources / rel
         dst.parent.mkdir(parents=True, exist_ok=True)
         if copy2_best_effort(src, dst, context="restore backup"):

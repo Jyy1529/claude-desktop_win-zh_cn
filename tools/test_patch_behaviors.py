@@ -5,6 +5,7 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import subprocess
 import tempfile
 from unittest import mock
 from pathlib import Path
@@ -55,6 +56,14 @@ def test_font_runtime_replaces_legacy_injection() -> None:
     assert "Create dynamic artifacts that stay up-to-date using live data from your connectors." in content
     assert "使用来自连接器的实时数据，创建保持更新的动态工件。" in content
     assert "VISIBLE_TEXT_SUBSTRING_FIXES" in content
+    assert "__CLAUDE_ZH_CN_VISIBLE_TEXT_FIX_PATCH__" in content
+    assert "function isThirdPartyProviderSettingsPage" in content
+    assert "function syncFloatingFontButtonVisibility" in content
+    assert "Manage third-party" in content
+    assert "第三方供应商" in content
+    assert "测试模型发现" in content
+    assert "Inference provider" in content
+    assert "document.getElementById(FLOATING_PANEL_ID)?.remove();" in content
     assert "\\bArtifacts\\b" in content
     assert "document.body.innerText ||" not in content
     assert "body *" not in content
@@ -88,6 +97,780 @@ def test_font_runtime_updates_marked_injection() -> None:
     assert "console.log('after');" in content
 
 
+def test_session_delete_runtime_is_injected() -> None:
+    patch_chunks = load_module("patch_chunks_zh_cn_session_delete", ROOT / "patch_chunks_zh_cn.py")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        assets = Path(tmp)
+        index = assets / "index-test.js"
+        index.write_text("console.log('app');\n", encoding="utf-8")
+
+        changed = patch_chunks.patch_session_delete_runtime(assets)
+        content = index.read_text(encoding="utf-8")
+
+    assert changed == 1
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_BEGIN__" in content
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_END__" in content
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__" in content
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_VERSION__" in content
+    assert 'const VERSION = "29"' in content
+    assert "claude-zh-cn-session-delete-button" in content
+    assert "claude-zh-cn-session-export-button" in content
+    assert "claude-zh-cn-session-move-button" in content
+    assert "claude-zh-cn-conversation-timeline" in content
+    assert "claude-zh-cn-timeline-summary" in content
+    assert "width: 28px;" in content
+    assert "#${TIMELINE_ID}:hover" in content
+    assert "#${TIMELINE_ID}:focus-within" in content
+    assert "background: #ffffff !important;" in content
+    assert "background-color: #ffffff !important;" in content
+    assert "opacity: 1 !important;" in content
+    assert "backdrop-filter: none !important;" in content
+    assert "color-mix(in srgb, var(--bg-000, #ffffff) 88%, transparent)" not in content
+    assert "claude-zh-cn-centered-layout" in content
+    assert "const CENTERED_WIDTH_KEY = \"claude-zh-cn-centered-layout-width\"" in content
+    assert "--claude-zh-cn-centered-width" in content
+    assert "function centeredLayoutWidth" in content
+    assert "function isThirdPartyProviderSettingsPage" in content
+    assert "function shouldShowCenteredLayoutControls" in content
+    assert "function showCenteredWidthDialog" in content
+    assert "claude-zh-cn-centered-width-dialog" in content
+    assert "button.style.display = showControl ? \"\" : \"none\";" in content
+    assert "const root = document.querySelector(\"main,[role='main']\") || document.body;" in content
+    assert "hasProviderTitle && hasProviderFields" in content
+    assert "return !isThirdPartyProviderSettingsPage();" in content
+    assert "/settings|account|billing|organization|admin|manage/i.test(location.pathname)" not in content
+    assert "自定义居中宽度" in content
+    assert "window.prompt" not in content
+    assert "contextmenu" in content
+    assert "dblclick" in content
+    assert "claude-zh-cn-session-delete-portal-button" in content
+    assert "function cleanupPortalButton" in content
+    assert "function cleanupRejectedRows" in content
+    assert "bindPortalHover(row);" not in content
+    assert "cleanupPortalButton();" in content
+    assert "!node.classList.contains(ACTION_BUTTON_CLASS)" in content
+    assert ".${BUTTON_CLASS} { right: 12px; }" in content
+    assert ".${EXPORT_BUTTON_CLASS} { right: 44px; }" in content
+    assert ".${MOVE_BUTTON_CLASS} { right: 76px; }" in content
+    assert "查看\\s*全部" in content
+    assert "展开|收起|折叠" in content
+    assert "[data-app-action-sidebar-thread-id]" in content
+    assert "[data-thread-id]" in content
+    assert "a[href^='/chat/']" in content
+    assert "function looksLikeSidebarSessionRow" in content
+    assert "function sessionRowRejectReason" in content
+    assert "function isInsideRecentsSection" in content
+    assert "function recentSectionRoots" in content
+    assert "rect.height < panelRect.height * 0.5" in content
+    assert "function recentsRowContainer" in content
+    assert "if (current.matches?.(\"[data-app-action-sidebar-thread-id],[data-session-id],[data-thread-id],[data-conversation-id],[data-chat-id],a[href],[role='link'],[role='treeitem'],[role='listitem'],li,button,[role='button']\")) break;" in content
+    assert "function meaningfulRecentsTitle" in content
+    assert "function recentsTitleNodes" in content
+    assert "function recentsTitleText" in content
+    assert "function hasReadableRecentsTitle" in content
+    assert "function isInjectedActionText" in content
+    assert "function isBlankOrStatusDotRow" in content
+    assert "function hasNativeRowControl" in content
+    assert "function isLikelyProjectOrGroupRow" in content
+    assert "function looksLikeRecentsEntryRow" in content
+    assert "Gateway|第三方" in content
+    assert "function sessionRowRejectReason" in content
+    assert "return \"not-session-title\";" in content
+    assert "max-width: calc(100% - 128px)" not in content
+    assert "word-break: break-word;" in content
+    assert "text-overflow: clip !important;" in content
+    assert "function sessionPanelRoots" in content
+    assert "function panelHasModeTabs" in content
+    assert "function hasRecentsSectionHint" in content
+    assert "function invalidateScanCache" in content
+    assert "function scanCache" in content
+    assert "document.querySelectorAll(SIDEBAR_CONTAINER_SELECTORS)" in content
+    assert "document.querySelectorAll(SESSION_SIGNAL_SELECTORS)" in content
+    assert "document.querySelectorAll(\"button,[role='tab'],[role='button'],a,div\")" not in content
+    assert "document.querySelectorAll(\"a[href],button,[role='button'],[role='link'],[role='treeitem'],[role='listitem'],li,div\")" not in content
+    assert "signalCount >= 2" in content
+    assert "if (!looksLikeRecentsEntryRow(node, text) && !hasSessionSignal(node) && !isCurrentSidebarItem(node)) return;" in content
+    assert "current.querySelector?.(SESSION_SIGNAL_SELECTORS)" in content
+    assert "sidebarContainers.forEach((container)" in content
+    assert "container.querySelectorAll(\"button,[role='tab'],[role='button'],a,div\")" in content
+    assert "container.querySelectorAll(\"a[href],button,[role='button'],[role='link'],[role='treeitem'],[role='listitem'],li,div\")" in content
+    assert "function isHistorySectionMarker" in content
+    assert "function isNonHistorySectionMarker" in content
+    assert "^(?:最近|历史)(?:\\s|$)" in content
+    assert "Recent(?:s| conversations| chats)?|History" in content
+    assert "if (!section.marker) return hasSessionSignal(row);" in content
+    assert "SESSION_SIGNAL_SELECTORS" in content
+    assert "function hasSessionSignal" in content
+    assert "function isCurrentSidebarItem" in content
+    assert "function isCurrentRecentsItem" in content
+    assert "function recentsRowKey" in content
+    assert "function preferRecentsRow" in content
+    assert "const isCurrentConversation = isCurrentRecentsItem(row, text);" in content
+    assert "const hasConversationSignal = hasSessionSignal(row) || isCurrentConversation;" in content
+    assert "if (!hasConversationSignal && looksLikeSidebarChrome(row, text)) return \"sidebar-chrome\";" in content
+    assert "return sessionRowRejectReason(row) === \"\";" in content
+    assert "return \"outside-recents-section\";" in content
+    assert "rect.width > 560" in content
+    assert "rect.height > 240" in content
+    assert "rect.height < 16" in content
+    assert "rect.height > 240" in content
+    assert "candidateRect.width >= 180" in content
+    assert "candidateRect.width > bestRect.width" in content
+    assert "if (current.matches?.(\"button,[role='button']\") && !rowId(current) && !looksLikeChatHref(rowHref(current))) continue;" in content
+    assert "if (!hasConversationSignal && hasNativeRowControl(row)) return false;" not in content
+    assert "return \"project-or-group\";" in content
+    assert "return \"blank-or-dot\";" in content
+    assert "if (!hasConversationSignal && !hasReadableRecentsTitle(row)) return false;" not in content
+    assert "const titles = new Map();" in content
+    assert "if (!titles.has(key)) titles.set(key, node);" in content
+    assert "return [...titles.values()];" in content
+    assert "return recentsTitleNodes(row).length > 0;" in content
+    assert "title.length > 600" not in content
+    assert "titleOrText.length > 600" not in content
+    assert "\"[data-testid*='title' i]\"" not in content
+    assert "\"[aria-label]\"" not in content
+    assert "function titleLooksLikeProjectGroup" in content
+    assert "titleLooksLikeProjectGroup(text)" in content
+    assert "function titleLooksLikeFilePath" in content
+    assert "titleLooksLikeFilePath(text)" in content
+    assert "(Gateway|第三方|project|folder|workspace|repo|repository|项目|文件夹|仓库|工作区|警告|warning)" not in content
+    assert "if (!meaningfulRecentsTitle(row, title)) return false;" in content
+    assert "^(移动|导出|删除|Move|Export|Delete)$" in content
+    assert "function stripInjectedActionText" in content
+    assert "looksLikeSidebarTextRow(row, text)" not in content
+    assert "个人插件|Personal plugins|第三方|自定义|Custom|选择文件夹|Choose folder" in content
+    assert "const leftLimit = Math.min(440, window.innerWidth * 0.45);" not in content
+    assert "function candidateRows" in content
+    candidate_start = content.index("function candidateRows")
+    candidate_end = content.index("function userQuestionNodes", candidate_start)
+    candidate_block = content[candidate_start:candidate_end]
+    assert "recentSectionRoots().forEach" in candidate_block
+    assert "RECENTS_ROW_CANDIDATE_SELECTORS" in candidate_block
+    assert "const row = recentsRowContainer(node);" in candidate_block
+    assert "const normalized = normalizeRecentsRow(row);" in candidate_block
+    assert "const rows = new Map();" in candidate_block
+    assert "rows.set(key, preferRecentsRow(rows.get(key), normalized));" in candidate_block
+    assert "return [...rows.values()];" in candidate_block
+    assert "document.querySelectorAll(ROW_SELECTORS)" not in candidate_block
+    assert "document.querySelectorAll(SIDEBAR_CONTAINER_SELECTORS)" not in candidate_block
+    assert "function attachRow" in content
+    assert "function tryNativeDelete" in content
+    assert "function showUndoToast" in content
+    assert "pendingDeleteTimer" in content
+    assert "row.dataset.claudeZhCnPendingDelete" in content
+    assert "已删除" in content
+    assert "已恢复" in content
+    assert "function activateExport" in content
+    assert "function buildConversationMarkdown" in content
+    assert "function messageRoleSignal" in content
+    assert "main [data-testid*='assistant']" in content
+    assert "main [data-testid*='response']" in content
+    assert "main [class*='markdown']" in content
+    assert "function isAssistantContentNode" in content
+    assert "main [class*='font-claude-message']" in content
+    assert "if (!role && lastRole === \"用户\") role = \"Claude\"" in content
+    assert "function renderTimeline" in content
+    assert "function scheduleTimelineRender" in content
+    assert "setTimeout(renderTimeline, 320)" in content
+    assert "function handlePageMutations" in content
+    assert "const MAIN_CONTAINER_SELECTORS = \"main,[role='main']\"" in content
+    assert "if (!section.marker) return hasSessionSignal(row);" in content
+    assert "Progress" in content
+    assert "new MutationObserver(handlePageMutations)" in content
+    assert "nodes.some(nodeTouchesSidebar)" in content
+    assert "nodes.some(nodeTouchesMain)" in content
+    assert "function rememberScrollPosition" in content
+    assert "function toggleCenteredLayout" in content
+    assert "function activateMove" in content
+    assert "function showMoveDialog" in content
+    assert "function moveConversationToProject" in content
+    assert "function currentConversationUuid" in content
+    assert "正在读取项目列表" in content
+    assert "移动接口失败" in content
+    assert "chat_conversations/move_many" in content
+    assert "project_uuid: projectUuid || null" in content
+    assert "SIDEBAR_CONTAINER_SELECTORS" in content
+    assert "revealRowActions(row)" in content
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_SCAN_STATE__" in content
+    assert "portalVisible" in content
+    assert "scanDurationMs" in content
+    assert "renderTimeline();" not in content
+    assert "setTimeout(scanRows, 180)" in content
+    assert "setTimeout(scanRows, 80)" not in content
+    assert "}, 4000);" in content
+    assert "}, 2000);" not in content
+    assert "lastError" in content
+    assert "MutationObserver" in content
+    assert "trashIconSvg" in content
+    assert "panelCount" in content
+    assert "sectionCount" in content
+    assert "candidateRowSamples" in content
+    assert "rejectReason" in content
+    assert "tag: row.tagName" in content
+    assert "console.log('app');" in content
+
+
+def test_session_delete_runtime_updates_marked_injection() -> None:
+    patch_chunks = load_module("patch_chunks_zh_cn_session_delete_update", ROOT / "patch_chunks_zh_cn.py")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        assets = Path(tmp)
+        index = assets / "index-test.js"
+        index.write_text(
+            "console.log('app');\n"
+            "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_BEGIN__\n"
+            ";(()=>{globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__ = true; const old = true;})();\n"
+            "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_END__\n"
+            "console.log('after');\n",
+            encoding="utf-8",
+        )
+
+        changed = patch_chunks.patch_session_delete_runtime(assets)
+        content = index.read_text(encoding="utf-8")
+
+    assert changed == 1
+    assert "const old = true" not in content
+    assert content.count("__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_BEGIN__") == 1
+    assert "claude-zh-cn-session-delete-button" in content
+    assert "console.log('after');" in content
+
+
+def test_session_delete_runtime_recognizes_new_session_rows_in_dom() -> None:
+    completed = subprocess.run(
+        ["node", str(ROOT / "tools" / "session_runtime_dom_test.mjs")],
+        cwd=ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
+    )
+
+    assert completed.returncode == 0, completed.stderr or completed.stdout
+    payload = json.loads(completed.stdout)
+    expected_counts = {
+        "before": 3,
+        "after": 3,
+        "currentNewButtons": 3,
+        "longTitleButtons": 3,
+        "slashTitleButtons": 3,
+        "placeholderButtons": 3,
+        "projectButtons": 0,
+        "filePathTitleButtons": 0,
+        "progressButtons": 0,
+        "filesButtons": 0,
+        "contextButtons": 0,
+        "candidateCount": 6,
+    }
+    for key, value in expected_counts.items():
+        assert payload[key] == value
+    assert payload["exportHasUser"] is True
+    assert payload["exportHasAssistant"] is True
+    assert len(payload["exportRoles"]) == 2
+    assert payload["exportRoles"][1] == "Claude"
+
+
+def test_cdp_session_delete_launcher_reuses_runtime_and_evaluates_script() -> None:
+    launcher = load_module("cdp_session_delete_launcher_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeCdpClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def call(self, method, params=None):
+            self.calls.append((method, params or {}))
+            if method == "Runtime.evaluate":
+                return {"result": {"type": "boolean", "value": True}}
+            return {}
+
+    client = FakeCdpClient()
+    script = "globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__ = true;"
+
+    with mock.patch.object(launcher.patch_chunks_zh_cn, "session_delete_inject_script", return_value=script):
+        launcher.inject_session_delete_runtime(client)
+
+    calls = client.calls
+    assert calls[0] == ("Runtime.enable", {})
+    assert calls[1] == ("Page.enable", {})
+    assert calls[2] == ("Page.addScriptToEvaluateOnNewDocument", {"source": script})
+    assert calls[3][0] == "Runtime.evaluate"
+    assert calls[3][1]["expression"] == script
+    assert calls[3][1]["awaitPromise"] is True
+    assert calls[3][1]["userGesture"] is True
+
+
+def test_cdp_session_delete_launcher_reads_health_state() -> None:
+    launcher = load_module("cdp_session_delete_launcher_health_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeCdpClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def call(self, method, params=None):
+            self.calls.append((method, params or {}))
+            return {
+                "result": {
+                    "type": "object",
+                    "value": {
+                        "enabled": True,
+                        "candidateCount": 3,
+                    },
+                }
+            }
+
+    client = FakeCdpClient()
+    state = launcher.read_session_delete_state(client)
+
+    assert state == {"enabled": True, "candidateCount": 3}
+    assert client.calls == [
+        (
+            "Runtime.evaluate",
+            {
+                "expression": "globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_SCAN_STATE__ || null",
+                "returnByValue": True,
+            },
+        )
+    ]
+
+
+def test_cdp_launcher_reads_runtime_health_snapshot() -> None:
+    launcher = load_module("cdp_runtime_health_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeCdpClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def call(self, method, params=None):
+            self.calls.append((method, params or {}))
+            return {
+                "result": {
+                    "value": {
+                        "sessionDelete": {"candidateCount": 2, "lastError": ""},
+                        "sessionDeletePatch": True,
+                        "fontPatch": True,
+                        "visibleTextFixPatch": True,
+                    }
+                }
+            }
+
+    client = FakeCdpClient()
+    health = launcher.read_runtime_health(client)
+
+    assert health["sessionDelete"]["candidateCount"] == 2
+    assert health["sessionDeletePatch"] is True
+    assert health["fontPatch"] is True
+    assert health["visibleTextFixPatch"] is True
+    assert client.calls[0][0] == "Runtime.evaluate"
+    expression = client.calls[0][1]["expression"]
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_SCAN_STATE__" in expression
+    assert "__CLAUDE_ZH_CN_FONT_PATCH__" in expression
+    assert "__CLAUDE_ZH_CN_VISIBLE_TEXT_FIX_PATCH__" in expression
+    assert client.calls[0][1]["returnByValue"] is True
+
+
+def test_cdp_launcher_reads_recents_row_diagnostics() -> None:
+    launcher = load_module("cdp_recents_row_diagnostics_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeCdpClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def call(self, method, params=None):
+            self.calls.append((method, params or {}))
+            return {
+                "result": {
+                    "value": [
+                        {
+                            "title": "Stitch tool and Harm",
+                            "text": "Stitch tool and Harm",
+                            "id": "abc123",
+                            "href": "/chat/abc123",
+                            "buttons": 3,
+                            "rect": {"x": 10, "y": 20, "width": 300, "height": 28},
+                        }
+                    ]
+                }
+            }
+
+    client = FakeCdpClient()
+    diagnostics = launcher.read_recents_row_diagnostics(client)
+
+    assert diagnostics[0]["buttons"] == 3
+    assert diagnostics[0]["title"] == "Stitch tool and Harm"
+    assert client.calls[0][0] == "Runtime.evaluate"
+    expression = client.calls[0][1]["expression"]
+    assert "querySelectorAll('[data-claude-zh-cn-delete-row=\"true\"]')" in expression
+    assert "getBoundingClientRect" in expression
+    assert "data-thread-title" in expression
+    assert "data-session-id" in expression
+    assert "data-conversation-id" in expression
+
+
+def test_cdp_launcher_reads_candidate_row_diagnostics() -> None:
+    launcher = load_module("cdp_candidate_row_diagnostics_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeCdpClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def call(self, method, params=None):
+            self.calls.append((method, params or {}))
+            return {
+                "result": {
+                    "value": [
+                        {
+                            "marked": False,
+                            "text": "Long missed conversation",
+                            "id": "",
+                            "href": "/chat/abc123456",
+                            "rect": {"x": 12, "y": 40, "width": 320, "height": 40},
+                        }
+                    ]
+                }
+            }
+
+    client = FakeCdpClient()
+    diagnostics = launcher.read_candidate_row_diagnostics(client)
+
+    assert diagnostics[0]["href"] == "/chat/abc123456"
+    assert diagnostics[0]["marked"] is False
+    expression = client.calls[0][1]["expression"]
+    assert "Sidebar row candidates" not in expression
+    assert "marked" in expression
+    assert "a[href]" in expression
+    assert "getBoundingClientRect" in expression
+
+
+def test_cdp_launcher_diagnose_rows_option_prints_rows(capsys) -> None:
+    launcher = load_module("cdp_diagnose_rows_option_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeClient:
+        def __init__(self, websocket_url, *, timeout):
+            self.websocket_url = websocket_url
+            self.timeout = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    target = {"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/1", "title": "Claude"}
+
+    with mock.patch.object(launcher, "resolve_app_dir", return_value=ROOT), \
+        mock.patch.object(launcher, "close_existing_claude"), \
+        mock.patch.object(launcher, "activate_claude_appx"), \
+        mock.patch.object(launcher, "launch_claude"), \
+        mock.patch.object(launcher, "read_debug_port_summary", return_value={"targets": [target], "error": ""}), \
+        mock.patch.object(launcher, "list_claude_processes", return_value=[{"ProcessId": 123, "ExecutablePath": "C:\\Claude\\claude.exe"}]), \
+        mock.patch.object(launcher, "wait_for_target", return_value=target), \
+        mock.patch.object(launcher, "CdpClient", FakeClient), \
+        mock.patch.object(launcher, "inject_session_delete_runtime"), \
+        mock.patch.object(launcher, "wait_for_session_delete_state", return_value={"panelCount": 1, "sectionCount": 1, "candidateCount": 1, "attachedCount": 3, "portalButton": True, "lastError": "", "candidates": [{"tag": "A", "title": "Current project analysis", "text": "Current project analysis", "id": "", "href": "/chat/abc12345", "signal": True, "rejectReason": "", "rect": {"x": 10, "y": 20, "width": 300, "height": 32}}]}), \
+        mock.patch.object(launcher, "read_runtime_health", return_value={"sessionDeletePatch": True, "fontPatch": True, "visibleTextFixPatch": True}), \
+        mock.patch.object(launcher, "read_recents_row_diagnostics", return_value=[{"title": "Current project analysis", "text": "Current project analysis", "id": "", "href": "/chat/abc12345", "buttons": 3, "rect": {"x": 10, "y": 20, "width": 300, "height": 32}}]), \
+        mock.patch.object(launcher, "read_candidate_row_diagnostics", return_value=[{"marked": False, "text": "Missed row", "id": "", "href": "/chat/def67890", "tag": "A", "role": "link", "buttons": 0, "rect": {"x": 10, "y": 60, "width": 300, "height": 32}}]):
+        result = launcher.main(["--app-dir", str(ROOT), "--diagnose-rows"])
+
+    output = capsys.readouterr().out
+    assert result == 0
+    assert "Recognized sidebar session rows:" in output
+    assert "Claude processes: 1" in output
+    assert "id=123 path=C:\\Claude\\claude.exe" in output
+    assert "CDP targets discovered: 1" in output
+    assert "Current project analysis" in output
+    assert "buttons=3" in output
+    assert "Sidebar row candidates:" in output
+    assert "Missed row" in output
+    assert "Runtime candidate samples:" in output
+    assert "reject=''" in output
+    assert "tag='A'" in output
+
+
+def test_cdp_launcher_injects_webview2_args_for_direct_exe(capsys) -> None:
+    launcher = load_module("cdp_direct_launch_env_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeClient:
+        def __init__(self, websocket_url, *, timeout):
+            self.websocket_url = websocket_url
+            self.timeout = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    target = {"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/1", "title": "Claude"}
+
+    with mock.patch.object(launcher, "resolve_app_dir", return_value=ROOT), \
+        mock.patch.object(launcher, "close_existing_claude"), \
+        mock.patch.object(launcher, "activate_claude_appx") as appx_activate, \
+        mock.patch.object(launcher, "launch_claude") as direct_launch, \
+        mock.patch.object(launcher, "read_debug_port_summary", return_value={"targets": [target], "error": ""}), \
+        mock.patch.object(launcher, "list_claude_processes", return_value=[{"Id": 123, "Path": "C:\\Claude\\claude.exe"}]), \
+        mock.patch.object(launcher, "wait_for_target", return_value=target), \
+        mock.patch.object(launcher, "CdpClient", FakeClient), \
+        mock.patch.object(launcher, "inject_session_delete_runtime"), \
+        mock.patch.object(launcher, "wait_for_session_delete_state", return_value={"candidateCount": 1, "attachedCount": 3, "portalButton": True, "lastError": ""}), \
+        mock.patch.object(launcher, "read_runtime_health", return_value={"sessionDeletePatch": True, "fontPatch": True, "visibleTextFixPatch": True}):
+        result = launcher.main(["--app-dir", str(ROOT)])
+
+    output = capsys.readouterr().out
+    assert result == 0
+    appx_activate.assert_called_once_with(port=9229)
+    direct_launch.assert_not_called()
+    assert "Started Claude through AppX activation" in output
+
+
+def test_cdp_launcher_passes_webview2_env_to_direct_exe() -> None:
+    launcher = load_module("cdp_webview2_env_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeClient:
+        def __init__(self, websocket_url, *, timeout):
+            self.websocket_url = websocket_url
+            self.timeout = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    env = launcher.build_launch_env(port=9229, base_env={"PATH": "x"})
+    assert env["WEBVIEW2_ADDITIONAL_BROWSER_ARGUMENTS"] == "--remote-debugging-port=9229 --remote-allow-origins=*"
+    assert env["PATH"] == "x"
+
+
+def test_cdp_launcher_appx_activation_uses_encoded_command_env_argument() -> None:
+    launcher = load_module("cdp_appx_encoded_command_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    with mock.patch.object(launcher.subprocess, "run") as run_mock:
+        run_mock.return_value = mock.Mock(returncode=0, stdout="1234\n", stderr="")
+        process_id = launcher.activate_claude_appx(port=9229)
+
+    args = run_mock.call_args.args[0]
+    kwargs = run_mock.call_args.kwargs
+    assert process_id == 1234
+    assert "-EncodedCommand" in args
+    assert "--remote-debugging-port=9229 --remote-allow-origins=*" in kwargs["env"]["CLAUDE_CDP_ARGUMENTS"]
+    assert "--remote-debugging-port=9229" not in args
+
+
+def test_cdp_launcher_falls_back_to_direct_exe_when_appx_has_no_target(capsys) -> None:
+    launcher = load_module("cdp_appx_fallback_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeClient:
+        def __init__(self, websocket_url, *, timeout):
+            self.websocket_url = websocket_url
+            self.timeout = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    target = {"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/1", "title": "Claude"}
+
+    with mock.patch.object(launcher, "resolve_app_dir", return_value=ROOT), \
+        mock.patch.object(launcher, "close_existing_claude"), \
+        mock.patch.object(launcher, "activate_claude_appx", side_effect=launcher.CdpError("No CDP target found")), \
+        mock.patch.object(launcher, "launch_claude") as direct_launch, \
+        mock.patch.object(launcher, "wait_for_target", return_value=target), \
+        mock.patch.object(launcher, "read_debug_port_summary", return_value={"targets": [target], "error": ""}), \
+        mock.patch.object(launcher, "list_claude_processes", return_value=[{"Id": 123, "Path": "C:\\Claude\\claude.exe"}]), \
+        mock.patch.object(launcher, "CdpClient", FakeClient), \
+        mock.patch.object(launcher, "inject_session_delete_runtime"), \
+        mock.patch.object(launcher, "wait_for_session_delete_state", return_value={"candidateCount": 1, "attachedCount": 3, "portalButton": True, "lastError": ""}), \
+        mock.patch.object(launcher, "read_runtime_health", return_value={"sessionDeletePatch": True, "fontPatch": True, "visibleTextFixPatch": True}):
+        result = launcher.main(["--app-dir", str(ROOT)])
+
+    output = capsys.readouterr().out
+    assert result == 0
+    direct_launch.assert_called_once()
+    assert "AppX activation did not expose a CDP target" in output
+
+
+def test_cdp_launcher_chooses_free_port_when_requested_port_is_busy() -> None:
+    launcher = load_module("cdp_free_port_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeClient:
+        def __init__(self, websocket_url, *, timeout):
+            self.websocket_url = websocket_url
+            self.timeout = timeout
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    target = {"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/1", "title": "Claude"}
+    debug_summary = mock.Mock(return_value={"targets": [target], "error": ""})
+
+    with mock.patch.object(launcher, "is_port_open", side_effect=lambda host, port: port == 9229), \
+        mock.patch.object(launcher, "activate_claude_appx") as appx_activate, \
+        mock.patch.object(launcher, "launch_claude") as launch_mock, \
+        mock.patch.object(launcher, "wait_for_target", return_value=target), \
+        mock.patch.object(launcher, "close_existing_claude"), \
+        mock.patch.object(launcher, "resolve_app_dir", return_value=ROOT), \
+        mock.patch.object(launcher, "read_debug_port_summary", debug_summary), \
+        mock.patch.object(launcher, "list_claude_processes", return_value=[]), \
+        mock.patch.object(launcher, "CdpClient", FakeClient), \
+        mock.patch.object(launcher, "inject_session_delete_runtime"), \
+        mock.patch.object(launcher, "wait_for_session_delete_state", return_value={"candidateCount": 1}), \
+        mock.patch.object(launcher, "read_runtime_health", return_value={"sessionDeletePatch": True}):
+        appx_activate.return_value = 1234
+        result = launcher.main(["--app-dir", str(ROOT), "--no-close-existing"])
+
+    assert result == 0
+    appx_activate.assert_called_once()
+    assert appx_activate.call_args.kwargs["port"] != 9229
+    launch_mock.assert_not_called()
+    debug_summary.assert_called_once_with("127.0.0.1", appx_activate.call_args.kwargs["port"])
+
+
+def test_cdp_launcher_lists_claude_like_processes() -> None:
+    launcher = load_module("cdp_process_list_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    payload = [
+        {
+            "ProcessId": 111,
+            "Name": "Claude.exe",
+            "ExecutablePath": r"C:\\Program Files\\WindowsApps\\Claude_1.9659.2.0_x64__pzs8sxrjxfjjc\\app\\Claude.exe",
+            "CommandLine": "Claude",
+        }
+    ]
+
+    with mock.patch.object(launcher.subprocess, "run") as run_mock:
+        run_mock.return_value = mock.Mock(stdout=json.dumps(payload), returncode=0)
+        processes = launcher.list_claude_processes()
+
+    assert processes[0]["ProcessId"] == 111
+    assert processes[0]["Name"] == "Claude.exe"
+    assert "Get-CimInstance Win32_Process" in run_mock.call_args[0][0][-1]
+    assert "*Claude*" in run_mock.call_args[0][0][-1]
+
+
+def test_cdp_launcher_reads_debug_port_summary_error() -> None:
+    launcher = load_module("cdp_debug_port_summary_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    with mock.patch.object(launcher, "get_targets", side_effect=launcher.CdpError("timed out")):
+        summary = launcher.read_debug_port_summary("127.0.0.1", 9229)
+
+    assert summary["host"] == "127.0.0.1"
+    assert summary["port"] == 9229
+    assert summary["targets"] == []
+    assert "timed out" in summary["error"]
+
+
+def test_cdp_launcher_scans_open_debug_ports_only() -> None:
+    launcher = load_module("cdp_port_scan_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    with mock.patch.object(launcher, "is_port_open", side_effect=lambda host, port: port in {9222, 9229}), \
+        mock.patch.object(launcher, "read_debug_port_summary", side_effect=lambda host, port: {"host": host, "port": port, "targets": [{"title": f"target-{port}"}], "error": ""}):
+        summaries = launcher.scan_debug_ports("127.0.0.1", 9222, 9230)
+
+    assert [item["port"] for item in summaries] == [9222, 9229]
+    assert summaries[1]["targets"][0]["title"] == "target-9229"
+
+
+def test_cdp_launcher_closes_existing_claude_before_launch() -> None:
+    launcher = load_module("cdp_close_existing_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+    events = []
+
+    class FakeClient:
+        def __init__(self, websocket_url, *, timeout):
+            events.append(("client", websocket_url, timeout))
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    with mock.patch.object(launcher, "resolve_app_dir", return_value=Path(r"C:\Claude\app")), \
+        mock.patch.object(launcher, "close_existing_claude", side_effect=lambda: events.append(("close",))), \
+        mock.patch.object(launcher, "activate_claude_appx", side_effect=lambda port: events.append(("activate", port))), \
+        mock.patch.object(launcher, "launch_claude", side_effect=lambda app_dir, port: events.append(("launch", app_dir, port))), \
+        mock.patch.object(launcher, "wait_for_target", return_value={"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/1"}), \
+        mock.patch.object(launcher, "CdpClient", FakeClient), \
+        mock.patch.object(launcher, "inject_session_delete_runtime", side_effect=lambda client: events.append(("inject",))), \
+        mock.patch.object(launcher, "wait_for_session_delete_state", return_value={"candidateCount": 1}), \
+        mock.patch.object(launcher, "read_runtime_health", return_value={"sessionDeletePatch": True}):
+        result = launcher.main(["--app-dir", r"C:\Claude\app"])
+
+    assert result == 0
+    assert events[0] == ("close",)
+    assert events[1] == ("activate", 9229)
+
+
+def test_cdp_launcher_can_skip_closing_existing_claude() -> None:
+    launcher = load_module("cdp_skip_close_existing_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+    events = []
+
+    class FakeClient:
+        def __init__(self, websocket_url, *, timeout):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, exc_type, exc, tb):
+            return None
+
+    with mock.patch.object(launcher, "resolve_app_dir", return_value=Path(r"C:\Claude\app")), \
+        mock.patch.object(launcher, "close_existing_claude", side_effect=lambda: events.append(("close",))), \
+        mock.patch.object(launcher, "activate_claude_appx", side_effect=lambda port: events.append(("activate",))), \
+        mock.patch.object(launcher, "launch_claude", side_effect=lambda app_dir, port: events.append(("launch",))), \
+        mock.patch.object(launcher, "wait_for_target", return_value={"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/1"}), \
+        mock.patch.object(launcher, "CdpClient", FakeClient), \
+        mock.patch.object(launcher, "inject_session_delete_runtime"), \
+        mock.patch.object(launcher, "wait_for_session_delete_state", return_value={}), \
+        mock.patch.object(launcher, "read_runtime_health", return_value={}):
+        result = launcher.main(["--app-dir", r"C:\Claude\app", "--no-close-existing"])
+
+    assert result == 0
+    assert ("close",) not in events
+    assert ("activate",) in events
+
+
+def test_cdp_session_delete_powershell_wrapper_invokes_launcher() -> None:
+    content = (ROOT / "claude-cdp-session-delete.ps1").read_text(encoding="utf-8-sig")
+
+    assert "tools\\cdp_session_delete_launcher.py" in content
+    assert "--port" in content
+    assert "--app-dir" in content
+    assert "--no-launch" in content
+    assert "--diagnose-rows" in content
+    assert "--scan-ports" in content
+    assert "--no-close-existing" not in content
+    assert "python" in content
+    assert "-B" in content
+
+
+def test_interactive_menu_runs_cdp_session_delete_from_install() -> None:
+    content = (ROOT / "claude-zh-cn.ps1").read_text(encoding="utf-8-sig")
+
+    assert "function Invoke-SessionDeleteCdp" in content
+    assert "claude-cdp-session-delete.ps1" in content
+    assert "-AppDir" in content
+    assert "$appDir" in content
+    install_start = content.index("function Invoke-Install")
+    cdp_section = content.index("# ── CDP 注入会话删除按钮")
+    install_block = content[install_start:cdp_section]
+    uninstall_start = content.index("function Invoke-Uninstall")
+    menu_block = content[content.index("function Show-Menu"):]
+
+    assert "Invoke-SessionDeleteCdp" in install_block
+    assert "正在执行 chunk 界面标签、字体和会话增强 patch" in install_block
+    assert "正在尝试通过 CDP 追加注入会话增强" in install_block
+    assert "运行时注入已随 Claude 关闭失效" in content[uninstall_start:]
+    assert "[5] 注入会话删除按钮（CDP）" not in menu_block
+    assert "请输入 0-4" in content
+    assert "请输入 0-5" not in content
+
+
 def test_frontend_resource_key_translations() -> None:
     data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
 
@@ -114,6 +897,12 @@ def test_frontend_resource_key_translations() -> None:
     assert data["zElqHZzItw"] == "发一个讯息…"
     assert data["5oTa1gWQsk"] == "允许的出站主机"
     assert data["CCUxBOb3va"] == "禁用 claude:// 深度链接处理"
+    assert data["/CJhBsAo9W"] == "复制插件"
+    assert data["0Urq2aeRGH"] == "复制技能"
+    assert data["4FdR+5IiDU"] == "复制"
+    assert data["4fHiNliQw2"] == "复制"
+    assert data["960gdhmel/"] == "复制配置"
+    assert data["uTR9Wyzw/s"] == "复制..."
 
 
 def test_frontend_organization_config_translations() -> None:
@@ -461,6 +1250,56 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
         assert en_us["keep"] == "Keep"
         assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json").exists()
         assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "en-US.json").exists()
+
+
+def test_json_patch_translates_main_process_debugger_labels() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        (resources / "ion-dist" / "i18n" / "statsig").mkdir(parents=True)
+        assets.mkdir(parents=True)
+        (resources / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"old":true}', encoding="utf-8")
+        index = assets / "index-test.js"
+        index.write_text(
+            'const labels=["Enable Main Process Debugger","Record Performance Trace","Write Main Process Heap Snapshot","Record Memory Trace (auto-stop)"];',
+            encoding="utf-8",
+        )
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_json = load_module("patch_windowsapps_json_only_main_process", ROOT / "patch_windowsapps_json_only.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_windowsapps_json_only.py", "--app-dir", str(app_dir)]
+            try:
+                result = patch_json.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        content = index.read_text(encoding="utf-8")
+
+    assert result == 0
+    assert "启用主进程调试器" in content
+    assert "记录性能跟踪" in content
+    assert "写入主进程堆快照" in content
+    assert "记录内存跟踪（自动停止）" in content
 
 
 def test_desktop_en_us_fallback_patch_only_updates_tray_labels() -> None:
@@ -816,6 +1655,28 @@ def test_chunk_patch_translates_keep_awake_label() -> None:
         assert "保持唤醒" in index.read_text(encoding="utf-8")
 
 
+def test_assets_tree_injects_session_tools_runtime() -> None:
+    patch_chunks = load_module("patch_chunks_zh_cn_session_tools_auto", ROOT / "patch_chunks_zh_cn.py")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        resources = Path(tmp) / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+        index = assets / "index-test.js"
+        index.write_text("console.log('app');\n", encoding="utf-8")
+
+        changed = patch_chunks.patch_assets_tree(resources)
+        content = index.read_text(encoding="utf-8")
+
+    assert changed == 2
+    assert "__CLAUDE_ZH_CN_FONT_PATCH__" in content
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__" in content
+    assert "claude-zh-cn-session-delete-button" in content
+    assert "claude-zh-cn-session-export-button" in content
+    assert "claude-zh-cn-conversation-timeline" in content
+    assert 'const VERSION = "29"' in content
+
+
 def test_chunk_patch_translates_custom_label() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = Path(tmp)
@@ -877,6 +1738,47 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const d="Code appearance";',
                     'const e="Local sessions";',
                     'const f="Enable remote control by default";',
+                    'const f_discard="Discard Changes";',
+                    'const f_discard_lower="Discard changes";',
+                    'const f_discard_question="Discard changes?";',
+                    'const f_apply="Apply Changes";',
+                    'const f_apply_lower="Apply changes";',
+                    'const model_hint="Shown in the model picker. Leave blank to auto-format from the ID.";',
+                    'const model_variant="Offer 1M-context variant";',
+                    'const model_id="Model ID";',
+                    'const surfaces="Allowed surfaces";',
+                    'const cowork_hint="Enable the Cowork tab. Claude works on longer tasks like research, analysis, and documents.";',
+                    'const code_hint="Enable the Code tab. Claude writes and runs code.";',
+                    'const restrictions="General restrictions";',
+                    'const restrictions_hint="These apply regardless of which surfaces are enabled.";',
+                    'const egress="Egress Requirements";',
+                    'const host_hint="Hostnames the agent\'s tools may reach from the Cowork and Code tabs. Also surfaced under Egress Requirements.";',
+                    'const help_a="Applies to both the Cowork and Code tabs.";',
+                    'const help_b="Only affects **tool calls**. Inference and MCP traffic are covered by their own allowlists elsewhere.";',
+                    'const help_c="When unset, only the inference endpoint is reachable from the sandbox; the agent\'s package installs (pip/npm) and web fetches will fail with a 403.";',
+                    'const help_d="Accepts exact hostnames (`api.github.com`), wildcards (`*.corp.com` matches one subdomain level), and `*` to allow all.";',
+                    'const help_e="Wildcards don\'t cross schemes. `*.corp.com` matches `docs.corp.com` but not `corp.com` itself; add both if you need the apex.";',
+                    'const help_f="IP literals and localhost always resolve regardless of this list; this is a public-egress filter, not a sandbox.";',
+                    'const help_g="Hosts you add here also need to be open on your network firewall. See Egress Requirements for the full allowlist.";',
+                    'const help_body={body:"Applies to both the Cowork and Code tabs.\\n\\nOnly affects **tool calls**. Inference and MCP traffic are covered by their own allowlists elsewhere.\\n\\nWhen unset, only the inference endpoint is reachable from the sandbox; the agent\'s package installs (pip/npm) and web fetches will fail with a 403.\\n\\nAccepts exact hostnames (`api.github.com`), wildcards (`*.corp.com` matches one subdomain level), and `*` to allow all.\\n\\nWildcards don\'t cross schemes. `*.corp.com` matches `docs.corp.com` but not `corp.com` itself; add both if you need the apex.\\n\\nIP literals and localhost always resolve regardless of this list; this is a public-egress filter, not a sandbox.\\n\\nHosts you add here also need to be open on your network firewall. See Egress Requirements for the full allowlist."};',
+                    'const unsaved_title="Discard unsaved changes?";',
+                    'const unsaved_body="This configuration has changes that haven\'t been saved. They will be lost.";',
+                    'const keep_editing="Keep editing";',
+                    'const keep_editing_default={defaultMessage:"Keep editing",id:"nZCHBxEAlK"};',
+                    'const discard_id={defaultMessage:"Discard",id:"nmpevlUATU"};',
+                    'const contrast="High-contrast dark theme";',
+                    'const contrast_hint="Use a darker, near-black background when dark mode is on.";',
+                    'const theme_size=[{value:"s",label:a.formatMessage({defaultMessage:"Small",id:"BPnT3TVya+"})},{value:"m",label:a.formatMessage({defaultMessage:"Medium",id:"ovJ26CKo4Q"})},{value:"l",label:a.formatMessage({defaultMessage:"Large",id:"/06iwcQHPz"})}];',
+                    'const workflows="Dynamic workflows";',
+                    'const workflows_hint="Let Claude run multiple agents in parallel for complex tasks. Workflows can use a lot of your usage limit quickly.";',
+                    'const workflows_warning="Dynamic workflows run many subagents in parallel and can use a lot of your usage limit. Stop them any time from the <link>tasks panel</link>.";',
+                    'const workflows_disabled="Dynamic workflows are disabled by your organization\'s policy.";',
+                    'const cowork_files="Cowork files";',
+                    'const cowork_files_hint="Your artifacts and scheduled tasks are stored at {path}.";',
+                    'const cowork_files_change="Change location for Cowork files?";',
+                    'const cowork_files_copy="Copy files to {location} and restart the app. Your existing files will remain in {previousLocation}.";',
+                    'const provider_error="{provider} returned an error";',
+                    'const provider_error_body="Your connection works, but the provider rejected a test request. Often a model-access or quota issue.";',
                     'const g="Connectors have moved to Customize. Head there to browse, connect, and manage them.";',
                     'const g2="Connectors have moved to <link>Customize</link>. Head there to browse, connect, and manage them.";',
                     'const h="Skills have moved to Customize.";',
@@ -892,6 +1794,7 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
                     'const q="Preferences";',
                     'const r="What Anthropic doesn\u2019t see";',
                     'const s="Claude will keep these in mind across chats and Cowork within Anthropic\'s guidelines. Learn more";',
+                    'const s_linked="Claude will keep these in mind across chats and Cowork within <aupLink>Anthropic\'s guidelines</aupLink>. <learnMoreLink>Learn more</learnMoreLink>";',
                     'const t="You\u2019re running Claude through your organization\u2019s own inference provider (cc.freemodel.dev). Your conversations are sent there, not to Anthropic, and are governed by your organization\u2019s agreement with that provider.";',
                     'const u="Live artifacts";',
                     'const u_old="工件";',
@@ -967,6 +1870,77 @@ def test_chunk_patch_translates_settings_hardcoded_ui() -> None:
         content = index.read_text(encoding="utf-8")
         sidebar_content = sidebar.read_text(encoding="utf-8")
         assert result == 0
+        assert "Discard Changes" not in content
+        assert "Discard changes" not in content
+        assert "Discard changes?" not in content
+        assert "Apply Changes" not in content
+        assert "Apply changes" not in content
+        assert "\u653e\u5f03\u66f4\u6539" in content
+        assert "\u653e\u5f03\u66f4\u6539\uff1f" in content
+        assert "\u5e94\u7528\u66f4\u6539" in content
+        for untranslated in [
+            "Shown in the model picker. Leave blank to auto-format from the ID.",
+            "Offer 1M-context variant",
+            "Model ID",
+            "Allowed surfaces",
+            "Enable the Cowork tab. Claude works on longer tasks like research, analysis, and documents.",
+            "Enable the Code tab. Claude writes and runs code.",
+            "General restrictions",
+            "These apply regardless of which surfaces are enabled.",
+            "Egress Requirements",
+            "Hostnames the agent's tools may reach from the Cowork and Code tabs. Also surfaced under Egress Requirements.",
+            "Applies to both the Cowork and Code tabs.",
+            "Only affects **tool calls**. Inference and MCP traffic are covered by their own allowlists elsewhere.",
+            "When unset, only the inference endpoint is reachable from the sandbox; the agent's package installs (pip/npm) and web fetches will fail with a 403.",
+            "Accepts exact hostnames (`api.github.com`), wildcards (`*.corp.com` matches one subdomain level), and `*` to allow all.",
+            "Wildcards don't cross schemes. `*.corp.com` matches `docs.corp.com` but not `corp.com` itself; add both if you need the apex.",
+            "IP literals and localhost always resolve regardless of this list; this is a public-egress filter, not a sandbox.",
+            "Hosts you add here also need to be open on your network firewall. See Egress Requirements for the full allowlist.",
+            "Discard unsaved changes?",
+            "This configuration has changes that haven't been saved. They will be lost.",
+            "Keep editing",
+            "Claude will keep these in mind across chats and Cowork within <aupLink>Anthropic's guidelines</aupLink>. <learnMoreLink>Learn more</learnMoreLink>",
+            'defaultMessage:"Discard",id:"nmpevlUATU"',
+            "High-contrast dark theme",
+            "Use a darker, near-black background when dark mode is on.",
+            'defaultMessage:"Small",id:"BPnT3TVya+"',
+            'defaultMessage:"Medium",id:"ovJ26CKo4Q"',
+            'defaultMessage:"Large",id:"/06iwcQHPz"',
+            "Dynamic workflows",
+            "Let Claude run multiple agents in parallel for complex tasks. Workflows can use a lot of your usage limit quickly.",
+            "Dynamic workflows run many subagents in parallel and can use a lot of your usage limit. Stop them any time from the <link>tasks panel</link>.",
+            "Dynamic workflows are disabled by your organization's policy.",
+            "Cowork files",
+            "Your artifacts and scheduled tasks are stored at {path}.",
+            "Change location for Cowork files?",
+            "Copy files to {location} and restart the app. Your existing files will remain in {previousLocation}.",
+            "{provider} returned an error",
+            "Your connection works, but the provider rejected a test request. Often a model-access or quota issue.",
+        ]:
+            assert untranslated not in content
+        for translated in [
+            "\u663e\u793a\u5728\u6a21\u578b\u9009\u62e9\u5668\u4e2d",
+            "\u63d0\u4f9b 1M \u4e0a\u4e0b\u6587\u53d8\u4f53",
+            "\u6a21\u578b ID",
+            "\u5141\u8bb8\u7684\u529f\u80fd\u754c\u9762",
+            "\u542f\u7528 Cowork \u6807\u7b7e\u9875",
+            "\u542f\u7528 Code \u6807\u7b7e\u9875",
+            "\u901a\u7528\u9650\u5236",
+            "\u51fa\u53e3\u8981\u6c42",
+            "\u653e\u5f03\u672a\u4fdd\u5b58\u7684\u66f4\u6539\uff1f",
+            "\u7ee7\u7eed\u7f16\u8f91",
+            'defaultMessage:"\u653e\u5f03",id:"nmpevlUATU"',
+            "\u9ad8\u5bf9\u6bd4\u5ea6\u6df1\u8272\u4e3b\u9898",
+            'defaultMessage:"\u5c0f",id:"BPnT3TVya+"',
+            'defaultMessage:"\u4e2d",id:"ovJ26CKo4Q"',
+            'defaultMessage:"\u5927",id:"/06iwcQHPz"',
+            "\u52a8\u6001\u5de5\u4f5c\u6d41",
+            "Cowork \u6587\u4ef6",
+            "\u66f4\u6539 Cowork \u6587\u4ef6\u4f4d\u7f6e\uff1f",
+            "Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa<aupLink>Anthropic \u7684\u6307\u5357</aupLink>\u3002<learnMoreLink>\u4e86\u89e3\u66f4\u591a</learnMoreLink>",
+            "{provider} \u8fd4\u56de\u9519\u8bef",
+        ]:
+            assert translated in content
         assert "界面字体" in content
         assert "对话记录文字大小" in content
         assert "代码外观" in content
@@ -1082,6 +2056,7 @@ def test_restore_restores_json_and_chunk_backups() -> None:
         assets = resources / "ion-dist" / "assets" / "v1"
         assets.mkdir(parents=True)
         (resources / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
+        (resources / "app.asar").write_text("current-official-asar", encoding="utf-8")
         (assets / "index-test.js").write_text("patched", encoding="utf-8")
 
         backup_base = localappdata / "Claude-zh-CN-official-backup"
@@ -1090,6 +2065,7 @@ def test_restore_restores_json_and_chunk_backups() -> None:
         backup_json.mkdir(parents=True)
         backup_chunks.mkdir(parents=True)
         (backup_json / "zh-CN.json").write_text('{"original":true}', encoding="utf-8")
+        (backup_json / "app.asar").write_text("stale-backed-up-asar", encoding="utf-8")
         (backup_chunks / "index-test.js").write_text("original", encoding="utf-8")
         config_dir = appdata / "Claude-3p"
         config_dir.mkdir(parents=True)
@@ -1122,6 +2098,7 @@ def test_restore_restores_json_and_chunk_backups() -> None:
 
         assert result == 0
         assert not (resources / "zh-CN.json").exists()
+        assert (resources / "app.asar").read_text(encoding="utf-8") == "current-official-asar"
         assert (assets / "index-test.js").read_text(encoding="utf-8") == "original"
 
 

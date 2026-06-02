@@ -47,6 +47,7 @@ def font_inject_script() -> str:
 ;(()=>{{
   if (globalThis.__CLAUDE_ZH_CN_FONT_PATCH__) return;
   globalThis.__CLAUDE_ZH_CN_FONT_PATCH__ = true;
+  globalThis.__CLAUDE_ZH_CN_VISIBLE_TEXT_FIX_PATCH__ = true;
   const KEY = "{FONT_KEY}";
   const PRESETS = {presets_json};
   const DEFAULT = PRESETS[0].family;
@@ -378,6 +379,22 @@ svg text, svg tspan {{
     }}
   }}
 
+  function isThirdPartyProviderSettingsPage() {{
+    const root = document.querySelector("main,[role='main']") || document.body;
+    const text = (root?.innerText || "").slice(0, 12000);
+    const hasProviderTitle = /(管理第三方供应商|第三方供应商|Manage third-party|Inference provider)/i.test(text);
+    const hasProviderFields = /(第三方认证方案|自定义推理标头|Authorization|x-api-key|模型发现|测试模型发现|Gateway base URL|Gateway API key)/i.test(text);
+    return hasProviderTitle && hasProviderFields;
+  }}
+
+  function syncFloatingFontButtonVisibility() {{
+    const button = document.getElementById(FAB_ID);
+    if (!button) return;
+    const hidden = isThirdPartyProviderSettingsPage();
+    button.style.display = hidden ? "none" : "";
+    if (hidden) document.getElementById(FLOATING_PANEL_ID)?.remove();
+  }}
+
   function mountFloatingButton() {{
     if (!document.body || document.getElementById(FAB_ID)) return;
     const button = document.createElement("button");
@@ -388,6 +405,7 @@ svg text, svg tspan {{
     button.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:2147483647;border:1px solid var(--border-300,#ddd);border-radius:999px;padding:8px 12px;background:var(--bg-000,#fff);color:inherit;box-shadow:0 8px 28px rgba(0,0,0,.18);cursor:pointer;font-size:13px;";
     button.addEventListener("click", openFloatingPanel);
     document.body.appendChild(button);
+    syncFloatingFontButtonVisibility();
   }}
 
   function mountPanel() {{
@@ -399,6 +417,7 @@ svg text, svg tspan {{
     mountFloatingButton();
     scheduleFixVisibleText();
     const observer = new MutationObserver(() => {{
+      syncFloatingFontButtonVisibility();
       scheduleFixVisibleText();
     }});
     observer.observe(document.body, {{ childList: true, subtree: true }});
@@ -411,6 +430,1903 @@ svg text, svg tspan {{
         "// __CLAUDE_ZH_CN_FONT_PATCH_BEGIN__",
         body,
         "// __CLAUDE_ZH_CN_FONT_PATCH_END__",
+    ])
+
+
+def session_delete_inject_script() -> str:
+    body = r'''
+;(()=>{
+  const VERSION = "29";
+  if (globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_VERSION__ === VERSION) return;
+  globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__ = true;
+  globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_VERSION__ = VERSION;
+
+  const STYLE_ID = "claude-zh-cn-session-delete-style";
+  const ACTION_BUTTON_CLASS = "claude-zh-cn-session-action-button";
+  const BUTTON_CLASS = "claude-zh-cn-session-delete-button";
+  const EXPORT_BUTTON_CLASS = "claude-zh-cn-session-export-button";
+  const MOVE_BUTTON_CLASS = "claude-zh-cn-session-move-button";
+  const PORTAL_BUTTON_CLASS = "claude-zh-cn-session-delete-portal-button";
+  const TOOLTIP_CLASS = "claude-zh-cn-session-delete-tooltip";
+  const TOAST_CLASS = "claude-zh-cn-session-delete-toast";
+  const TIMELINE_ID = "claude-zh-cn-conversation-timeline";
+  const CENTERED_CLASS = "claude-zh-cn-centered-layout";
+  const CENTERED_TOGGLE_ID = "claude-zh-cn-centered-layout-toggle";
+  const CENTERED_WIDTH_KEY = "claude-zh-cn-centered-layout-width";
+  const SCROLL_STORAGE_PREFIX = "claude-zh-cn-scroll:";
+  const ROW_FLAG = "data-claude-zh-cn-delete-row";
+  const ROW_SELECTORS = [
+    "[data-app-action-sidebar-thread-id]",
+    "[data-session-id]",
+    "[data-thread-id]",
+    "[data-conversation-id]",
+    "[data-chat-id]",
+    "[data-testid*='conversation']",
+    "[data-testid*='chat']",
+    "[aria-current]",
+    "a[href^='/chat/']",
+    "a[href^='/conversation/']",
+    "a[href^='/thread/']",
+    "a[href^='/session/']",
+    "a[href*='://claude.ai/chat/']",
+    "aside a[href*='/chat/']",
+    "aside a[href*='/conversation/']",
+    "aside a[href*='/thread/']",
+    "aside button",
+    "aside [role='button']",
+    "aside [role='link']",
+    "aside [role='treeitem']",
+    "aside [role='listitem']",
+    "aside [tabindex]:not([tabindex='-1'])",
+    "nav a[href*='/chat/']",
+    "nav a[href*='/conversation/']",
+    "nav a[href*='/thread/']",
+    "nav button",
+    "nav [role='button']",
+    "nav [role='link']",
+    "nav [role='treeitem']",
+    "nav [role='listitem']",
+    "nav [tabindex]:not([tabindex='-1'])",
+    "[role='navigation'] a[href*='/chat/']",
+    "[role='navigation'] a[href*='/conversation/']",
+    "[role='navigation'] a[href*='/thread/']",
+    "[role='navigation'] button",
+    "[role='navigation'] [role='button']",
+    "[role='navigation'] [role='link']",
+    "[role='navigation'] [role='treeitem']",
+    "[role='navigation'] [role='listitem']",
+    "[role='navigation'] [tabindex]:not([tabindex='-1'])"
+  ].join(",");
+  const SESSION_SIGNAL_SELECTORS = [
+    "[data-app-action-sidebar-thread-id]",
+    "[data-session-id]",
+    "[data-thread-id]",
+    "[data-conversation-id]",
+    "[data-chat-id]",
+    "a[href^='/chat/']",
+    "a[href^='/conversation/']",
+    "a[href^='/thread/']",
+    "a[href^='/session/']",
+    "a[href*='://claude.ai/chat/']"
+  ].join(",");
+  const INTERACTIVE_ROW_SELECTORS = [
+    "a[href]",
+    "button",
+    "[role='button']",
+    "[role='link']",
+    "[role='treeitem']",
+    "[role='listitem']",
+    "[tabindex]:not([tabindex='-1'])"
+  ].join(",");
+  const RECENTS_ROW_CANDIDATE_SELECTORS = [
+    ROW_SELECTORS,
+    INTERACTIVE_ROW_SELECTORS,
+    "[data-testid]",
+    "[class*='conversation']",
+    "[class*='Conversation']",
+    "[class*='thread']",
+    "[class*='Thread']",
+    "[class*='chat']",
+    "[class*='Chat']",
+    "li",
+    "div"
+  ].join(",");
+  const SIDEBAR_CONTAINER_SELECTORS = [
+    "aside",
+    "nav",
+    "[role='navigation']",
+    "[data-sidebar]",
+    "[data-testid*='sidebar']",
+    "[data-testid*='history']",
+    "[data-testid*='conversation']",
+    "[data-testid*='chat']",
+    "[class*='sidebar']",
+    "[class*='Sidebar']",
+    "[class*='history']",
+    "[class*='History']"
+  ].join(",");
+  const MAIN_CONTAINER_SELECTORS = "main,[role='main']";
+  let activeRow = null;
+  let portalButton = null;
+  let hidePortalTimer = 0;
+  let pendingDeleteTimer = 0;
+  let rootsCache = null;
+
+  function invalidateScanCache() {
+    rootsCache = null;
+  }
+
+  function scanCache() {
+    if (!rootsCache) rootsCache = {};
+    return rootsCache;
+  }
+
+  function installStyle() {
+    const existing = document.getElementById(STYLE_ID);
+    if (existing?.dataset.sessionDeleteVersion === VERSION) return;
+    existing?.remove();
+    const style = document.createElement("style");
+    style.id = STYLE_ID;
+    style.dataset.sessionDeleteVersion = VERSION;
+    style.textContent = `
+      [${ROW_FLAG}="true"] {
+        position: relative !important;
+      }
+      .${ACTION_BUTTON_CLASS} {
+        position: absolute;
+        top: 50%;
+        z-index: 30;
+        width: 26px;
+        height: 26px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transform: translateY(-50%);
+        border: 0;
+        border-radius: 6px;
+        background: color-mix(in srgb, var(--bg-000, #ffffff) 90%, transparent);
+        color: var(--text-300, #6b7280);
+        opacity: 0;
+        pointer-events: none;
+        cursor: default;
+        transition: opacity .12s ease, background .12s ease, color .12s ease;
+      }
+      .${ACTION_BUTTON_CLASS} svg {
+        width: 15px;
+        height: 15px;
+        display: block;
+      }
+      .${BUTTON_CLASS} { right: 12px; }
+      .${EXPORT_BUTTON_CLASS} { right: 44px; }
+      .${MOVE_BUTTON_CLASS} { right: 76px; }
+      [${ROW_FLAG}="true"]:hover .${ACTION_BUTTON_CLASS},
+      [${ROW_FLAG}="true"]:focus-within .${ACTION_BUTTON_CLASS} {
+        opacity: 1;
+        pointer-events: auto;
+      }
+      [${ROW_FLAG}="true"]:has(.${ACTION_BUTTON_CLASS}) {
+        padding-right: 108px !important;
+      }
+      [${ROW_FLAG}="true"][data-claude-zh-cn-pending-delete="true"] {
+        display: none !important;
+      }
+      .${ACTION_BUTTON_CLASS}:hover,
+      .${ACTION_BUTTON_CLASS}:focus-visible {
+        background: color-mix(in srgb, #0ea5e9 14%, var(--bg-000, #ffffff));
+        color: #0369a1;
+        outline: none;
+      }
+      .${BUTTON_CLASS}:hover,
+      .${BUTTON_CLASS}:focus-visible {
+        background: color-mix(in srgb, #ef4444 16%, var(--bg-000, #ffffff));
+        color: #dc2626;
+        outline: none;
+      }
+      .${ACTION_BUTTON_CLASS}.${PORTAL_BUTTON_CLASS} {
+        position: fixed;
+        right: auto;
+        z-index: 2147483199;
+        opacity: 0;
+        pointer-events: none;
+      }
+      .${ACTION_BUTTON_CLASS}.${PORTAL_BUTTON_CLASS}[data-visible="true"] {
+        opacity: 0 !important;
+        pointer-events: none !important;
+        display: none !important;
+      }
+      [${ROW_FLAG}="true"]:hover [data-thread-title],
+      [${ROW_FLAG}="true"]:focus-within [data-thread-title],
+      [${ROW_FLAG}="true"]:hover .truncate,
+      [${ROW_FLAG}="true"]:focus-within .truncate {
+        max-width: none !important;
+        overflow: visible !important;
+        text-overflow: clip !important;
+        white-space: normal !important;
+        word-break: break-word;
+      }
+      .${TOOLTIP_CLASS},
+      .${TOAST_CLASS} {
+        position: fixed;
+        z-index: 2147483201;
+        border-radius: 8px;
+        background: #242628;
+        color: #f4f4f5;
+        font: 13px/18px system-ui, sans-serif;
+        box-shadow: 0 14px 40px rgba(0,0,0,.28);
+        pointer-events: none;
+      }
+      .${TOOLTIP_CLASS} {
+        padding: 7px 9px;
+        white-space: nowrap;
+      }
+      .${TOAST_CLASS} {
+        right: 18px;
+        bottom: 56px;
+        max-width: min(420px, calc(100vw - 36px));
+        padding: 10px 12px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .${TOAST_CLASS} button {
+        border: 0;
+        border-radius: 6px;
+        background: #f4f4f5;
+        color: #18181b;
+        font: 12px/16px system-ui, sans-serif;
+        padding: 4px 7px;
+        cursor: default;
+      }
+      .claude-zh-cn-session-delete-confirm-overlay {
+        position: fixed;
+        inset: 0;
+        z-index: 2147483200;
+        display: grid;
+        place-items: center;
+        background: rgba(0,0,0,.28);
+      }
+      .claude-zh-cn-session-delete-confirm-content {
+        width: min(360px, calc(100vw - 32px));
+        border: 1px solid rgba(255,255,255,.12);
+        border-radius: 12px;
+        background: var(--bg-000, #ffffff);
+        color: var(--text-500, #111827);
+        box-shadow: 0 18px 60px rgba(0,0,0,.28);
+        padding: 16px;
+      }
+      .claude-zh-cn-session-delete-confirm-title {
+        font: 600 15px/22px system-ui, sans-serif;
+      }
+      .claude-zh-cn-session-delete-confirm-message {
+        margin-top: 8px;
+        color: var(--text-300, #6b7280);
+        font: 13px/20px system-ui, sans-serif;
+      }
+      .claude-zh-cn-session-delete-confirm-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 16px;
+      }
+      .claude-zh-cn-session-delete-confirm-actions button {
+        border: 1px solid var(--border-300, #d1d5db);
+        border-radius: 8px;
+        background: var(--bg-000, #ffffff);
+        color: inherit;
+        font: 13px/18px system-ui, sans-serif;
+        padding: 7px 10px;
+        cursor: default;
+      }
+      .claude-zh-cn-session-delete-confirm-actions [data-claude-delete-confirm] {
+        border-color: #ef4444;
+        background: #dc2626;
+        color: #ffffff;
+      }
+      .claude-zh-cn-session-move-list {
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+        max-height: min(360px, calc(100vh - 220px));
+        overflow: auto;
+        margin-top: 12px;
+      }
+      .claude-zh-cn-session-move-list button {
+        width: 100%;
+        border: 1px solid var(--border-300, #d1d5db);
+        border-radius: 8px;
+        background: var(--bg-000, #ffffff);
+        color: inherit;
+        text-align: left;
+        font: 13px/18px system-ui, sans-serif;
+        padding: 8px 10px;
+        cursor: default;
+      }
+      .claude-zh-cn-session-move-list button:hover,
+      .claude-zh-cn-session-move-list button:focus-visible {
+        background: color-mix(in srgb, var(--text-500, #111827) 8%, transparent);
+        outline: none;
+      }
+      #${TIMELINE_ID} {
+        position: fixed;
+        right: 0;
+        top: 86px;
+        z-index: 2147482000;
+        width: 28px;
+        max-height: min(520px, calc(100vh - 160px));
+        overflow: auto;
+        padding: 8px 5px;
+        border: 1px solid var(--border-300, rgba(0,0,0,.14));
+        border-right: 0;
+        border-radius: 8px 0 0 8px;
+        background: #ffffff !important;
+        background-color: #ffffff !important;
+        color: var(--text-300, #52525b);
+        font: 12px/16px system-ui, sans-serif;
+        box-shadow: 0 8px 26px rgba(0,0,0,.16);
+        transition: width .16s ease, padding .16s ease;
+        opacity: 1 !important;
+        backdrop-filter: none !important;
+      }
+      #${TIMELINE_ID}:empty {
+        display: none;
+      }
+      #${TIMELINE_ID}:hover,
+      #${TIMELINE_ID}:focus-within {
+        width: 240px;
+        padding: 8px 8px;
+      }
+      #${TIMELINE_ID} button {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        width: 100%;
+        min-height: 24px;
+        margin: 0 0 6px;
+        border: 0;
+        border-radius: 6px;
+        background: transparent;
+        color: inherit;
+        text-align: left;
+        font: inherit;
+        padding: 5px 4px;
+        cursor: default;
+      }
+      #${TIMELINE_ID} button::before {
+        content: "";
+        flex: 0 0 8px;
+        width: 8px;
+        height: 8px;
+        border-radius: 999px;
+        background: currentColor;
+        opacity: .86;
+      }
+      #${TIMELINE_ID} .claude-zh-cn-timeline-summary {
+        display: block;
+        min-width: 0;
+        max-width: 0;
+        overflow: hidden;
+        white-space: nowrap;
+        text-overflow: ellipsis;
+        opacity: 0;
+        transition: max-width .16s ease, opacity .12s ease;
+      }
+      #${TIMELINE_ID}:hover .claude-zh-cn-timeline-summary,
+      #${TIMELINE_ID}:focus-within .claude-zh-cn-timeline-summary {
+        max-width: 200px;
+        opacity: 1;
+      }
+      #${TIMELINE_ID} button:hover,
+      #${TIMELINE_ID} button:focus-visible {
+        background: color-mix(in srgb, var(--text-500, #111827) 8%, transparent);
+        outline: none;
+      }
+      .${CENTERED_CLASS} main,
+      .${CENTERED_CLASS} [role="main"],
+      .${CENTERED_CLASS} form {
+        max-width: var(--claude-zh-cn-centered-width, 980px) !important;
+        margin-left: auto !important;
+        margin-right: auto !important;
+      }
+      #${CENTERED_TOGGLE_ID} {
+        position: fixed;
+        right: 20px;
+        bottom: 64px;
+        z-index: 2147483100;
+        border: 1px solid var(--border-300,#ddd);
+        border-radius: 999px;
+        padding: 7px 10px;
+        background: var(--bg-000,#fff);
+        color: inherit;
+        box-shadow: 0 8px 28px rgba(0,0,0,.14);
+        cursor: default;
+        font: 12px/16px system-ui, sans-serif;
+      }
+      .claude-zh-cn-centered-width-dialog {
+        position: fixed;
+        right: 20px;
+        bottom: 108px;
+        z-index: 2147483200;
+        width: 232px;
+        border: 1px solid var(--border-300,#d1d5db);
+        border-radius: 8px;
+        background: #ffffff;
+        color: var(--text-500,#111827);
+        box-shadow: 0 16px 48px rgba(0,0,0,.18);
+        padding: 12px;
+        font: 12px/16px system-ui, sans-serif;
+      }
+      .claude-zh-cn-centered-width-dialog label {
+        display: block;
+        margin-bottom: 8px;
+        font-weight: 600;
+      }
+      .claude-zh-cn-centered-width-dialog input {
+        width: 100%;
+        box-sizing: border-box;
+        border: 1px solid var(--border-300,#d1d5db);
+        border-radius: 6px;
+        padding: 7px 8px;
+        font: 13px/18px system-ui, sans-serif;
+      }
+      .claude-zh-cn-centered-width-dialog-actions {
+        display: flex;
+        justify-content: flex-end;
+        gap: 8px;
+        margin-top: 10px;
+      }
+      .claude-zh-cn-centered-width-dialog button {
+        border: 1px solid var(--border-300,#d1d5db);
+        border-radius: 6px;
+        background: #ffffff;
+        color: inherit;
+        padding: 5px 8px;
+        font: 12px/16px system-ui, sans-serif;
+        cursor: default;
+      }
+    `;
+    document.documentElement.appendChild(style);
+  }
+
+  function rowHref(row) {
+    return row.getAttribute("href") || row.querySelector("a[href]")?.getAttribute("href") || "";
+  }
+
+  function looksLikeChatHref(value) {
+    if (!value) return false;
+    try {
+      const url = new URL(value, window.location.href);
+      return /^\/(chat|conversation|thread|session)\/[A-Za-z0-9_.-]{8,}/i.test(url.pathname);
+    } catch {
+      return /\/(chat|conversation|thread|session)\/[A-Za-z0-9_.-]{8,}/i.test(value);
+    }
+  }
+
+  function rowId(row) {
+    const href = rowHref(row);
+    const idMatch = href.match(/(?:chat|conversation|thread|session)(?:\/|=|:|-)([A-Za-z0-9_.-]+)/i)
+      || href.match(/\/([A-Za-z0-9_-]{8,})(?:[/?#]|$)/);
+    return row.getAttribute("data-app-action-sidebar-thread-id")
+      || row.getAttribute("data-session-id")
+      || row.getAttribute("data-thread-id")
+      || row.getAttribute("data-conversation-id")
+      || row.getAttribute("data-chat-id")
+      || (idMatch && idMatch[1])
+      || "";
+  }
+
+  function currentConversationUuid() {
+    const candidates = [location.pathname, location.href];
+    for (const value of candidates) {
+      const match = String(value || "").match(/(?:chat|conversation|thread|session)\/([A-Za-z0-9_.-]{8,})/i);
+      if (match?.[1]) return match[1];
+    }
+    return "";
+  }
+
+  function hasSidebarAncestor(node) {
+    for (let current = node; current && current !== document.body; current = current.parentElement) {
+      const tag = current.tagName?.toLowerCase?.() || "";
+      if (tag === "aside" || tag === "nav") return true;
+      if (current.getAttribute?.("role") === "navigation") return true;
+      const attrs = [
+        current.getAttribute?.("data-testid"),
+        current.getAttribute?.("data-sidebar"),
+        current.getAttribute?.("aria-label"),
+        typeof current.className === "string" ? current.className : "",
+      ].filter(Boolean).join(" ").toLowerCase();
+      if (/(sidebar|side-bar|navigation|recents|history|chats|conversations|侧边栏|导航|最近|历史|聊天|会话)/.test(attrs)) return true;
+    }
+    return false;
+  }
+
+  function isHistorySectionMarker(text) {
+    const value = String(text || "").trim();
+    return /^(?:最近|历史)(?:\s|$)/.test(value) || /^(?:Recent(?:s| conversations| chats)?|History)\b/i.test(value);
+  }
+
+  function isNonHistorySectionMarker(text) {
+    return /^(项目|Projects|文件|Files|说明|Docs|模型|Models|Gateway|用例|Cases|进度|Progress|上下文|Context|规范|Specs|工具|Tools|个人插件|Personal plugins|第三方|自定义|Custom|选择文件夹|Choose folder)\b/i.test(String(text || "").trim());
+  }
+
+  function panelHasModeTabs(panel) {
+    const text = rowVisibleText(panel).slice(0, 400);
+    return /(协作|Collaborate)/i.test(text) && /(代码|Code)/i.test(text);
+  }
+
+  function hasRecentsSectionHint(panel) {
+    const text = rowVisibleText(panel).slice(0, 1200);
+    return /(?:最近|历史|Recent(?:s| conversations| chats)?|History|聊天|Chat|会话)/i.test(text);
+  }
+
+  function sessionPanelRoots() {
+    const cache = scanCache();
+    if (cache.panelRoots) return cache.panelRoots;
+    const roots = new Set();
+    const addRoot = (panel) => {
+      if (!panel) return;
+      if (panelHasModeTabs(panel) || hasRecentsSectionHint(panel) || panel.querySelector?.(SESSION_SIGNAL_SELECTORS)) roots.add(panel);
+    };
+    const sidebarContainers = [...document.querySelectorAll(SIDEBAR_CONTAINER_SELECTORS)].filter(visible);
+    sidebarContainers.forEach(addRoot);
+    document.querySelectorAll(SESSION_SIGNAL_SELECTORS).forEach((signal) => {
+      for (let current = signal.parentElement; current && current !== document.body; current = current.parentElement) {
+        const rect = current.getBoundingClientRect?.();
+        if (!rect || rect.width < 160 || rect.height < 120 || rect.width > 840) continue;
+        const signalCount = current.querySelectorAll?.(SESSION_SIGNAL_SELECTORS)?.length || 0;
+        if (current.matches?.(SIDEBAR_CONTAINER_SELECTORS) || signalCount >= 2 || (signalCount >= 1 && rect.left <= Math.max(560, window.innerWidth * 0.45))) {
+          addRoot(current);
+          break;
+        }
+      }
+    });
+    sidebarContainers.forEach((container) => {
+      container.querySelectorAll("button,[role='tab'],[role='button'],a,div").forEach((node) => {
+        const text = rowVisibleText(node);
+        if (!/(协作|Collaborate|代码|Code|最近|历史|Recent|History|聊天|Chat)/i.test(text)) return;
+        addRoot(container);
+      });
+      container.querySelectorAll("a[href],button,[role='button'],[role='link'],[role='treeitem'],[role='listitem'],li,div").forEach((node) => {
+        const text = rowVisibleText(node);
+        if (!looksLikeRecentsEntryRow(node, text) && !hasSessionSignal(node) && !isCurrentSidebarItem(node)) return;
+        for (let current = node.parentElement; current && current !== document.body; current = current.parentElement) {
+          const rect = current.getBoundingClientRect?.();
+          if (!rect || rect.width < 160 || rect.height < 120 || rect.left > Math.max(560, window.innerWidth * 0.6)) break;
+          if (current === container || current.matches?.(SIDEBAR_CONTAINER_SELECTORS) || current.querySelector?.(SESSION_SIGNAL_SELECTORS)) {
+            addRoot(current === container ? container : current);
+            break;
+          }
+        }
+      });
+    });
+    cache.panelRoots = [...roots];
+    return cache.panelRoots;
+  }
+
+  function recentSectionRoots() {
+    const cache = scanCache();
+    if (cache.recentSectionRoots) return cache.recentSectionRoots;
+    const roots = [];
+    sessionPanelRoots().forEach((panel) => {
+      const markers = [...panel.querySelectorAll("button,[role='button'],[role='heading'],[aria-label],a,div,span")]
+        .filter(visible)
+        .filter((node) => node !== panel)
+        .filter((node) => !node.querySelector?.(SESSION_SIGNAL_SELECTORS))
+        .filter((node) => {
+          const rect = node.getBoundingClientRect?.();
+          const panelRect = panel.getBoundingClientRect?.();
+          return !rect || !panelRect || rect.height < panelRect.height * 0.5;
+        })
+        .filter((node) => isHistorySectionMarker(rowVisibleText(node)));
+      if (markers.length) roots.push(...markers.map((marker) => ({ panel, marker })));
+      else roots.push({ panel, marker: null });
+    });
+    cache.recentSectionRoots = roots;
+    return roots;
+  }
+
+  function isInsideRecentsSection(row) {
+    const rect = row.getBoundingClientRect?.();
+    if (!rect) return false;
+    const section = recentSectionRoots().find(({ panel, marker }) => {
+      if (!panel.contains(row)) return false;
+      if (!marker) return true;
+      const markerRect = marker.getBoundingClientRect?.();
+      return markerRect && markerRect.bottom <= rect.top + 1;
+    });
+    if (!section) return false;
+    if (!section.marker) return hasSessionSignal(row);
+    const markerRect = section.marker.getBoundingClientRect?.();
+    const nodes = [...section.panel.querySelectorAll("button,[role='button'],[role='heading'],[aria-label],a,div,span")].filter(visible);
+    for (const node of nodes) {
+      const nodeRect = node.getBoundingClientRect?.();
+      if (!nodeRect || nodeRect.bottom <= markerRect.bottom + 1 || nodeRect.top >= rect.top - 1) continue;
+      const text = rowVisibleText(node);
+      if (isNonHistorySectionMarker(text)) return false;
+    }
+    return true;
+  }
+
+  function looksLikeRecentsEntryRow(row, text) {
+    const title = recentsTitleText(row) || text;
+    if (!title || title.length < 2) return false;
+    if (looksLikeSidebarChrome(row, text)) return false;
+    if (isHistorySectionMarker(title) || isNonHistorySectionMarker(title)) return false;
+    if (!meaningfulRecentsTitle(row, title)) return false;
+    if (row.matches?.("input,textarea,select,[contenteditable='true']")) return false;
+    if (row.querySelector?.("input,textarea,select,[contenteditable='true']")) return false;
+    return true;
+  }
+
+  function hasNativeRowControl(row) {
+    return [...row.querySelectorAll?.("button,[role='button'],[aria-haspopup],[data-radix-menu-trigger]") || []]
+      .some((node) => !node.classList?.contains(ACTION_BUTTON_CLASS));
+  }
+
+  function isLikelyProjectOrGroupRow(row, text) {
+    if (titleLooksLikeFilePath(text) && !rowId(row) && !looksLikeChatHref(rowHref(row))) return true;
+    if (titleLooksLikeProjectGroup(text) && !rowId(row) && !looksLikeChatHref(rowHref(row))) return true;
+    const label = [
+      row.getAttribute?.("aria-label"),
+      row.getAttribute?.("title")
+    ].filter(Boolean).join(" ");
+    return /(Gateway|第三方|folder|workspace|repo|repository|文件夹|仓库|工作区|警告|warning)/i.test(label)
+      && !rowId(row)
+      && !looksLikeChatHref(rowHref(row));
+  }
+
+  function titleLooksLikeProjectGroup(text) {
+    return /^(?:Gateway|第三方|Projects?|项目)(?:\s|$)/i.test(String(text || "").trim());
+  }
+
+  function titleLooksLikeFilePath(text) {
+    const value = stripInjectedActionText(text).trim();
+    if (/^[A-Za-z]:[\\/]/.test(value)) return true;
+    if (/^(?:\.{1,2}|~)[\\/]/.test(value)) return true;
+    if (/^[\\/][^\\/]+[\\/]/.test(value)) return true;
+    return /[\\/].+\.(?:c|cc|cpp|cs|css|go|h|hpp|html|java|js|jsx|json|kt|md|mjs|py|rs|scss|swift|toml|ts|tsx|txt|xml|yaml|yml)$/i.test(value);
+  }
+
+  function isInjectedActionText(value) {
+    return /^(移动|导出|删除|Move|Export|Delete)$/.test(String(value || "").trim());
+  }
+
+  function stripInjectedActionText(value) {
+    return String(value || "")
+      .replace(/\b(Move|Export|Delete)\b/gi, " ")
+      .replace(/移动|导出|删除/g, " ")
+      .replace(/\s+/g, " ")
+      .trim();
+  }
+
+  function meaningfulRecentsTitle(row, text) {
+    const value = stripInjectedActionText(text);
+    if (!value) return false;
+    if (isInjectedActionText(value)) return false;
+    if (/^[•·◦○\u25e6\u25cb\u2022]+$/.test(value)) return false;
+    if (value.length < 3 && !rowId(row) && !looksLikeChatHref(rowHref(row))) return false;
+    if (/^[\p{P}\p{S}\s]+$/u.test(value)) return false;
+    return true;
+  }
+
+  function recentsTitleNodes(row) {
+    if (!row || row.nodeType !== 1) return [];
+    const selectors = [
+      "[data-thread-title]",
+      ".truncate",
+      "[title]"
+    ].join(",");
+    const titles = new Map();
+    [...row.querySelectorAll?.(selectors) || []].forEach((node) => {
+      if (node.classList?.contains(ACTION_BUTTON_CLASS)) return false;
+      if (node.closest?.(`.${ACTION_BUTTON_CLASS},.${PORTAL_BUTTON_CLASS}`)) return false;
+      if (node.matches?.("button,[role='button']")) return false;
+      const title = stripInjectedActionText(node.getAttribute?.("title") || rowVisibleText(node));
+      if (!title) return;
+      if (isInjectedActionText(title)) return;
+      if (looksLikeSidebarChrome(node, title)) return;
+      if (isHistorySectionMarker(title) || isNonHistorySectionMarker(title)) return;
+      if (!meaningfulRecentsTitle(row, title)) return;
+      const key = title.replace(/\s+/g, " ").trim().toLowerCase();
+      if (!titles.has(key)) titles.set(key, node);
+    });
+    return [...titles.values()];
+  }
+
+  function recentsTitleText(row) {
+    const node = recentsTitleNodes(row)[0];
+    if (!node) return "";
+    return stripInjectedActionText(node.getAttribute?.("title") || rowVisibleText(node));
+  }
+
+  function hasReadableRecentsTitle(row) {
+    return recentsTitleNodes(row).length > 0;
+  }
+
+  function hasSessionSignal(row) {
+    return !!rowId(row)
+      || looksLikeChatHref(rowHref(row))
+      || !!row.querySelector?.(SESSION_SIGNAL_SELECTORS);
+  }
+
+  function isCurrentSidebarItem(row) {
+    return row.getAttribute?.("aria-current") === "page"
+      || row.getAttribute?.("aria-current") === "true";
+  }
+
+  function isCurrentRecentsItem(row, text) {
+    return isCurrentSidebarItem(row)
+      && isInsideRecentsSection(row)
+      && !isLikelyProjectOrGroupRow(row, text || rowVisibleText(row));
+  }
+
+  function recentsRowKey(row) {
+    return rowId(row) || rowHref(row) || recentsTitleText(row) || rowVisibleText(row).slice(0, 120);
+  }
+
+  function preferRecentsRow(existing, next) {
+    if (!existing) return next;
+    if (!next) return existing;
+    if (next.contains?.(existing)) return next;
+    if (existing.contains?.(next)) return existing;
+    const existingSignal = (hasSessionSignal(existing) ? 4 : 0) + (hasReadableRecentsTitle(existing) ? 2 : 0) + (existing.matches?.("li,[role='listitem'],[role='treeitem']") ? 1 : 0);
+    const nextSignal = (hasSessionSignal(next) ? 4 : 0) + (hasReadableRecentsTitle(next) ? 2 : 0) + (next.matches?.("li,[role='listitem'],[role='treeitem']") ? 1 : 0);
+    if (nextSignal !== existingSignal) return nextSignal > existingSignal ? next : existing;
+    const existingInteractive = existing.matches?.("a[href],button,[role='button']") ? 1 : 0;
+    const nextInteractive = next.matches?.("a[href],button,[role='button']") ? 1 : 0;
+    if (nextInteractive !== existingInteractive) return nextInteractive < existingInteractive ? next : existing;
+    const existingRect = existing.getBoundingClientRect?.();
+    const nextRect = next.getBoundingClientRect?.();
+    const existingArea = existingRect ? existingRect.width * existingRect.height : 0;
+    const nextArea = nextRect ? nextRect.width * nextRect.height : 0;
+    return nextArea > existingArea ? next : existing;
+  }
+
+  function isBlankOrStatusDotRow(row, text) {
+    const value = stripInjectedActionText(text || rowVisibleText(row));
+    if (!value) return true;
+    if (/^[•·◦○\u25e6\u25cb\u2022]+$/.test(value)) return true;
+    return false;
+  }
+
+  function recentsRowContainer(node) {
+    const selectors = "[data-app-action-sidebar-thread-id],[data-session-id],[data-thread-id],[data-conversation-id],[data-chat-id],a[href],button,[role='button'],[role='link'],[role='treeitem'],[role='listitem'],li";
+    const direct = node.closest?.(selectors);
+    if (direct) {
+      const directText = rowVisibleText(direct);
+      if (direct.matches?.("button,[role='button']") && !rowId(direct) && !looksLikeChatHref(rowHref(direct))) return node;
+      if (hasReadableRecentsTitle(direct) || rowId(direct) || looksLikeChatHref(rowHref(direct)) || isCurrentRecentsItem(direct, directText)) return direct;
+    }
+    let best = node;
+    for (let current = node; current && current !== document.body; current = current.parentElement) {
+      if (current.matches?.("button,[role='button']") && !rowId(current) && !looksLikeChatHref(rowHref(current))) continue;
+      const rect = current.getBoundingClientRect?.();
+      if (!rect || rect.width < 120 || rect.width > 440 || rect.height < 16 || rect.height > 240) continue;
+      const candidateText = rowVisibleText(current);
+      if (isHistorySectionMarker(candidateText) || isNonHistorySectionMarker(candidateText)) continue;
+      if (!hasReadableRecentsTitle(current) && !rowId(current) && !looksLikeChatHref(rowHref(current)) && !isCurrentRecentsItem(current, candidateText) && !looksLikeRecentsEntryRow(current, candidateText)) continue;
+      const bestRect = best.getBoundingClientRect?.();
+      const candidateRect = rect;
+      if (!bestRect || candidateRect.width > bestRect.width) best = current;
+      if (candidateRect.width >= 180) return current;
+    }
+    return best;
+  }
+
+  function normalizeRecentsRow(row) {
+    if (!row || row.nodeType !== 1) return row;
+    let best = row;
+    for (let current = row; current && current !== document.body; current = current.parentElement) {
+      const rect = current.getBoundingClientRect?.();
+      if (!rect || rect.width < 120 || rect.width > 560 || rect.height < 16 || rect.height > 240) continue;
+      const text = rowVisibleText(current);
+      if (isHistorySectionMarker(text) || isNonHistorySectionMarker(text) || isLikelyProjectOrGroupRow(current, text)) continue;
+      if (!hasSessionSignal(current) && !hasReadableRecentsTitle(current) && !looksLikeRecentsEntryRow(current, text)) continue;
+      best = current;
+      if (current.matches?.("[data-app-action-sidebar-thread-id],[data-session-id],[data-thread-id],[data-conversation-id],[data-chat-id],a[href],[role='link'],[role='treeitem'],[role='listitem'],li,button,[role='button']")) break;
+    }
+    return best;
+  }
+
+  function looksLikeSidebarSessionRow(row) {
+    return sessionRowRejectReason(row) === "";
+  }
+
+  function sessionRowRejectReason(row) {
+    if (!row || row.nodeType !== 1) return "invalid";
+    const rect = row.getBoundingClientRect?.();
+    if (!rect || rect.width <= 0 || rect.height <= 0) return "invisible";
+    const text = rowVisibleText(row);
+    const title = recentsTitleText(row);
+    const titleOrText = title || text;
+    const isCurrentConversation = isCurrentRecentsItem(row, text);
+    const hasConversationSignal = hasSessionSignal(row) || isCurrentConversation;
+    if (isBlankOrStatusDotRow(row, text)) return "blank-or-dot";
+    if (!hasConversationSignal && looksLikeSidebarChrome(row, text)) return "sidebar-chrome";
+    if (!hasSidebarAncestor(row) && !sessionPanelRoots().some((panel) => panel.contains(row))) return "outside-session-panel";
+    if (rect.width > 560) return "too-wide";
+    if (rect.height < 16) return "too-short";
+    if (rect.height > 240) return "too-tall";
+    if (!titleOrText) return "missing-title";
+    if (!hasConversationSignal && isLikelyProjectOrGroupRow(row, text)) return "project-or-group";
+    if (!hasConversationSignal && !looksLikeRecentsEntryRow(row, text)) return "not-session-title";
+    if (!isInsideRecentsSection(row)) return "outside-recents-section";
+    return "";
+  }
+
+  function rowVisibleText(row) {
+    if (!row) return "";
+    const walker = document.createTreeWalker(row, NodeFilter.SHOW_TEXT, {
+      acceptNode(node) {
+        const value = String(node.nodeValue || "").replace(/\s+/g, " ").trim();
+        if (!value) return NodeFilter.FILTER_REJECT;
+        const parent = node.parentElement;
+        if (!parent) return NodeFilter.FILTER_REJECT;
+        if (parent.closest?.(`.${ACTION_BUTTON_CLASS},.${TOOLTIP_CLASS},.${TOAST_CLASS},.${PORTAL_BUTTON_CLASS},[aria-hidden="true"],[hidden]`)) return NodeFilter.FILTER_REJECT;
+        const style = window.getComputedStyle?.(parent);
+        if (style && (style.display === "none" || style.visibility === "hidden")) return NodeFilter.FILTER_REJECT;
+        const rect = parent.getBoundingClientRect?.();
+        if (rect && (rect.width <= 0 || rect.height <= 0)) return NodeFilter.FILTER_REJECT;
+        return NodeFilter.FILTER_ACCEPT;
+      }
+    });
+    const parts = [];
+    for (let node = walker.nextNode(); node; node = walker.nextNode()) parts.push(node.nodeValue);
+    return stripInjectedActionText(parts.join(" ")).replace(/\s+/g, " ").trim();
+  }
+
+  function looksLikeSidebarChrome(row, text) {
+    const label = [
+      row.getAttribute?.("aria-label"),
+      row.getAttribute?.("title"),
+      text
+    ].filter(Boolean).join(" ");
+    return /new chat|search|settings|help|upgrade|profile|account|view\s*all|show\s*more|show\s*less|expand|collapse|新建|搜索|设置|帮助|升级|账户|个人资料|查看\s*全部|展开|收起|折叠/i.test(label);
+  }
+
+  function rowTitle(row) {
+    const titleNode = row.querySelector("[data-thread-title], .truncate, [title]");
+    return (
+      titleNode?.getAttribute("title")
+      || titleNode?.textContent
+      || row.getAttribute("aria-label")
+      || row.textContent
+      || "当前会话"
+    ).replace(/\s*(删除|Delete|导出|Export|移动|Move|归档|Archive|更多|More)\s*$/g, "").trim().slice(0, 120);
+  }
+
+  function visible(node) {
+    const rect = node?.getBoundingClientRect?.();
+    return !!rect && rect.width > 0 && rect.height > 0;
+  }
+
+  function isCurrentRow(row) {
+    if (row.getAttribute("aria-current") === "page" || row.getAttribute("aria-current") === "true") return true;
+    const href = rowHref(row);
+    if (!href) return false;
+    try {
+      const url = new URL(href, window.location.href);
+      return url.href === window.location.href || url.pathname === window.location.pathname;
+    } catch {
+      return window.location.href.includes(href);
+    }
+  }
+
+  function stopButtonEvent(event) {
+    event.preventDefault();
+    event.stopPropagation();
+    event.stopImmediatePropagation?.();
+  }
+
+  function hideTooltip() {
+    document.querySelectorAll(`.${TOOLTIP_CLASS}`).forEach((node) => node.remove());
+  }
+
+  function showTooltip(button, text) {
+    hideTooltip();
+    const tooltip = document.createElement("div");
+    tooltip.className = TOOLTIP_CLASS;
+    tooltip.textContent = text || button.getAttribute("aria-label") || "操作";
+    document.body.appendChild(tooltip);
+    const buttonRect = button.getBoundingClientRect();
+    const tooltipRect = tooltip.getBoundingClientRect();
+    tooltip.style.left = `${Math.max(8, Math.min(window.innerWidth - tooltipRect.width - 8, buttonRect.left + buttonRect.width / 2 - tooltipRect.width / 2))}px`;
+    tooltip.style.top = `${Math.max(8, buttonRect.bottom + 8)}px`;
+  }
+
+  function showToast(message) {
+    document.querySelectorAll(`.${TOAST_CLASS}`).forEach((node) => node.remove());
+    const toast = document.createElement("div");
+    toast.className = TOAST_CLASS;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4200);
+  }
+
+  function showUndoToast(message, onUndo) {
+    document.querySelectorAll(`.${TOAST_CLASS}`).forEach((node) => node.remove());
+    const toast = document.createElement("div");
+    toast.className = TOAST_CLASS;
+    const text = document.createElement("span");
+    text.textContent = message;
+    const button = document.createElement("button");
+    button.type = "button";
+    button.textContent = "撤销";
+    button.addEventListener("click", (event) => {
+      stopButtonEvent(event);
+      toast.remove();
+      onUndo?.();
+    }, true);
+    toast.appendChild(text);
+    toast.appendChild(button);
+    document.body.appendChild(toast);
+    setTimeout(() => toast.remove(), 4600);
+  }
+
+  function trashIconSvg() {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 6h18"></path>
+        <path d="M8 6V4h8v2"></path>
+        <path d="M19 6l-1 14H6L5 6"></path>
+        <path d="M10 11v5"></path>
+        <path d="M14 11v5"></path>
+      </svg>
+    `;
+  }
+
+  function exportIconSvg() {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M12 3v12"></path>
+        <path d="m7 10 5 5 5-5"></path>
+        <path d="M5 21h14"></path>
+      </svg>
+    `;
+  }
+
+  function moveIconSvg() {
+    return `
+      <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 7h6l2 2h10v10H3z"></path>
+        <path d="M14 13h5"></path>
+        <path d="m17 10 3 3-3 3"></path>
+      </svg>
+    `;
+  }
+
+  function ensurePortalButton() {
+    const existing = document.querySelector(`.${BUTTON_CLASS}.${PORTAL_BUTTON_CLASS}`);
+    if (existing?.dataset.sessionDeleteVersion === VERSION) {
+      portalButton = existing;
+      return existing;
+    }
+    existing?.remove();
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `${ACTION_BUTTON_CLASS} ${BUTTON_CLASS} ${PORTAL_BUTTON_CLASS}`;
+    button.dataset.sessionDeleteVersion = VERSION;
+    button.setAttribute("aria-label", "删除");
+    button.innerHTML = trashIconSvg();
+    ["pointerdown", "mousedown", "mouseup", "touchstart"].forEach((eventName) => {
+      button.addEventListener(eventName, stopButtonEvent, true);
+    });
+    button.addEventListener("pointerenter", () => {
+      clearTimeout(hidePortalTimer);
+      showTooltip(button, "删除");
+    });
+    button.addEventListener("pointerleave", () => scheduleHidePortal());
+    button.addEventListener("focus", () => showTooltip(button));
+    button.addEventListener("blur", () => scheduleHidePortal());
+    button.addEventListener("click", (event) => {
+      if (activeRow) activateDelete(activeRow, event);
+      else stopButtonEvent(event);
+    }, true);
+    document.body.appendChild(button);
+    portalButton = button;
+    return button;
+  }
+
+  function cleanupPortalButton() {
+    document.querySelectorAll(`.${BUTTON_CLASS}.${PORTAL_BUTTON_CLASS}`).forEach((node) => node.remove());
+    portalButton = null;
+    activeRow = null;
+  }
+
+  function positionPortalButton(row) {
+    const button = ensurePortalButton();
+    const rect = row.getBoundingClientRect?.();
+    if (!rect) return;
+    const left = Math.max(8, Math.min(window.innerWidth - 34, rect.right - 34));
+    const top = Math.max(8, Math.min(window.innerHeight - 34, rect.top + rect.height / 2 - 13));
+    button.style.left = `${left}px`;
+    button.style.top = `${top}px`;
+    button.dataset.visible = "true";
+    activeRow = row;
+  }
+
+  function hidePortalButton() {
+    hideTooltip();
+    if (portalButton) portalButton.dataset.visible = "false";
+    activeRow = null;
+  }
+
+  function scheduleHidePortal() {
+    clearTimeout(hidePortalTimer);
+    hidePortalTimer = setTimeout(() => {
+      const hoveredRow = activeRow?.matches?.(":hover");
+      const hoveredButton = portalButton?.matches?.(":hover");
+      if (!hoveredRow && !hoveredButton) hidePortalButton();
+    }, 120);
+  }
+
+  function bindPortalHover(row) {
+    if (row.dataset.claudeZhCnDeleteHoverBound === VERSION) return;
+    row.dataset.claudeZhCnDeleteHoverBound = VERSION;
+    row.addEventListener("pointerenter", () => {
+      clearTimeout(hidePortalTimer);
+      positionPortalButton(row);
+    });
+    row.addEventListener("pointermove", () => positionPortalButton(row));
+    row.addEventListener("pointerleave", () => scheduleHidePortal());
+    row.addEventListener("focusin", () => positionPortalButton(row));
+    row.addEventListener("focusout", () => scheduleHidePortal());
+  }
+
+  function menuCandidateText(node) {
+    return [
+      node.getAttribute?.("aria-label"),
+      node.getAttribute?.("title"),
+      node.dataset?.state,
+      node.textContent
+    ].filter(Boolean).join(" ").trim();
+  }
+
+  function isNativeDeleteControl(node) {
+    return /(^|\s)(delete|remove|删除)(\s|$)/i.test(menuCandidateText(node));
+  }
+
+  function isMenuTrigger(node) {
+    const text = menuCandidateText(node).toLowerCase();
+    return /more|options|menu|ellipsis|conversation options|chat options|更多|选项|菜单|会话选项|聊天选项|⋯|…/.test(text)
+      || (node.textContent || "").trim() === "..."
+      || (node.textContent || "").trim() === "⋯";
+  }
+
+  function possibleNativeControls(row) {
+    return [...row.querySelectorAll("button,[role='button'],[aria-label],[title],[tabindex]:not([tabindex='-1'])")]
+      .filter((node) => !node.classList.contains(ACTION_BUTTON_CLASS));
+  }
+
+  function clickNode(node) {
+    ["pointerdown", "mousedown", "pointerup", "mouseup", "click"].forEach((type) => {
+      node.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+    });
+  }
+
+  function revealRowActions(row) {
+    ["pointerover", "pointerenter", "mouseover", "mouseenter"].forEach((type) => {
+      row.dispatchEvent(new MouseEvent(type, { bubbles: true, cancelable: true, view: window }));
+    });
+  }
+
+  function clickDialogConfirm() {
+    const dialogs = [...document.querySelectorAll("[role='dialog'],[data-radix-dialog-content],div")].filter((node) => {
+      const text = node.textContent || "";
+      return visible(node) && /(delete|remove|删除)/i.test(text);
+    });
+    for (const dialog of dialogs) {
+      const buttons = [...dialog.querySelectorAll("button,[role='button']")].filter(visible);
+      const confirm = buttons.find((button) => /(delete|remove|确认|删除)/i.test(menuCandidateText(button)));
+      if (confirm) {
+        clickNode(confirm);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  function clickDeleteMenuItem() {
+    const menus = [...document.querySelectorAll("[role='menu'],[data-radix-menu-content],[cmdk-list],body")];
+    for (const menu of menus) {
+      const item = [...menu.querySelectorAll("button,[role='menuitem'],[role='option'],[cmdk-item],div")]
+        .filter(visible)
+        .find(isNativeDeleteControl);
+      if (item) {
+        clickNode(item);
+        setTimeout(clickDialogConfirm, 160);
+        setTimeout(clickDialogConfirm, 420);
+        return true;
+      }
+    }
+    return false;
+  }
+
+  async function tryNativeDelete(row) {
+    revealRowActions(row);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const directDelete = possibleNativeControls(row).find((node) => isNativeDeleteControl(node));
+    if (directDelete) {
+      clickNode(directDelete);
+      setTimeout(clickDialogConfirm, 160);
+      return true;
+    }
+
+    const triggers = possibleNativeControls(row).filter(isMenuTrigger);
+    for (const trigger of triggers) {
+      clickNode(trigger);
+      for (const delay of [80, 180, 360, 700]) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        if (clickDeleteMenuItem()) return true;
+      }
+    }
+    return false;
+  }
+
+  function escapeHtml(value) {
+    return String(value)
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;")
+      .replaceAll('"', "&quot;")
+      .replaceAll("'", "&#39;");
+  }
+
+  function confirmDelete(title) {
+    document.querySelectorAll(".claude-zh-cn-session-delete-confirm-overlay").forEach((node) => node.remove());
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "claude-zh-cn-session-delete-confirm-overlay";
+      overlay.innerHTML = `
+        <div class="claude-zh-cn-session-delete-confirm-content" role="dialog" aria-modal="true" aria-label="删除会话">
+          <div class="claude-zh-cn-session-delete-confirm-title">删除会话</div>
+          <div class="claude-zh-cn-session-delete-confirm-message">删除“${escapeHtml(title || "当前会话")}”？</div>
+          <div class="claude-zh-cn-session-delete-confirm-actions">
+            <button type="button" data-claude-delete-cancel>取消</button>
+            <button type="button" data-claude-delete-confirm>删除</button>
+          </div>
+        </div>
+      `;
+      const finish = (value, event) => {
+        event?.preventDefault();
+        event?.stopPropagation();
+        overlay.remove();
+        resolve(value);
+      };
+      overlay.addEventListener("click", (event) => {
+        if (event.target === overlay || event.target.closest("[data-claude-delete-cancel]")) finish(false, event);
+        if (event.target.closest("[data-claude-delete-confirm]")) finish(true, event);
+      }, true);
+      overlay.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") finish(false, event);
+      }, true);
+      document.body.appendChild(overlay);
+      overlay.querySelector("[data-claude-delete-cancel]")?.focus();
+    });
+  }
+
+  async function activateDelete(row, event) {
+    stopButtonEvent(event);
+    hideTooltip();
+    const title = rowTitle(row);
+    if (!(await confirmDelete(title))) return;
+    clearTimeout(pendingDeleteTimer);
+    row.dataset.claudeZhCnPendingDelete = "true";
+    showUndoToast(`已删除“${title || "当前会话"}”`, () => {
+      clearTimeout(pendingDeleteTimer);
+      pendingDeleteTimer = 0;
+      row.dataset.claudeZhCnPendingDelete = "false";
+      showToast("已恢复");
+    });
+    pendingDeleteTimer = setTimeout(async () => {
+      pendingDeleteTimer = 0;
+      const deleted = await tryNativeDelete(row);
+      if (deleted) {
+        if (isCurrentRow(row)) setTimeout(() => window.dispatchEvent(new Event("resize")), 300);
+        return;
+      }
+      row.dataset.claudeZhCnPendingDelete = "false";
+      showToast("未找到 Claude 自带删除入口");
+    }, 4000);
+  }
+
+  function messageNodes() {
+    const selectors = [
+      "[data-testid*='message']",
+      "[data-message-author-role]",
+      "[data-author]",
+      "main [data-testid*='assistant']",
+      "main [data-testid*='response']",
+      "main [data-testid*='answer']",
+      "main [data-testid*='user']",
+      "main [class*='font-claude-message']",
+      "main [class*='claude-message']",
+      "main [class*='claude-response']",
+      "main [class*='assistant']",
+      "main [class*='response']",
+      "main [class*='markdown']",
+      "main [class*='prose']",
+      "main [data-is-streaming]",
+      "[class*='message']",
+      "main article",
+      "main [role='listitem']"
+    ].join(",");
+    return [...document.querySelectorAll(selectors)].filter((node) => {
+      if (!visible(node)) return false;
+      if (node.closest?.("aside,nav,[role='navigation']")) return false;
+      if (node.querySelector?.("[data-message-author-role],[data-author]") && !messageRoleSignal(node)) return false;
+      const text = rowVisibleText(node);
+      return text.length >= 2 && text.length <= 20000;
+    });
+  }
+
+  function messageRoleSignal(node) {
+    const carrier = node.closest?.("[data-message-author-role],[data-author],[data-testid*='message'],article,[role='listitem']") || node;
+    const data = [
+      carrier.getAttribute?.("data-message-author-role"),
+      carrier.getAttribute?.("data-author"),
+      carrier.getAttribute?.("aria-label"),
+      typeof carrier.className === "string" ? carrier.className : "",
+      node.getAttribute?.("data-message-author-role"),
+      node.getAttribute?.("data-author"),
+      node.getAttribute?.("data-testid"),
+      node.getAttribute?.("aria-label"),
+      typeof node.className === "string" ? node.className : ""
+    ].filter(Boolean).join(" ").toLowerCase();
+    if (/user|human|you|我|用户/.test(data)) return "用户";
+    if (/assistant|claude|model|助手/.test(data)) return "Claude";
+    return "";
+  }
+
+  function isAssistantContentNode(node) {
+    const data = [
+      node.getAttribute?.("data-testid"),
+      node.getAttribute?.("data-is-streaming"),
+      node.getAttribute?.("aria-label"),
+      typeof node.className === "string" ? node.className : ""
+    ].filter(Boolean).join(" ").toLowerCase();
+    return /assistant|claude|model|response|answer|markdown|prose|streaming|助手|回复/.test(data);
+  }
+
+  function messageRole(node) {
+    const signal = messageRoleSignal(node);
+    if (signal) return signal;
+    if (isAssistantContentNode(node)) return "Claude";
+    const text = rowVisibleText(node).slice(0, 80);
+    if (/^(you|你|我)[:：]/i.test(text)) return "用户";
+    if (/^claude[:：]/i.test(text)) return "Claude";
+    return "";
+  }
+
+  function currentConversationTitle() {
+    const heading = document.querySelector("main h1,[role='main'] h1,h1");
+    return (heading?.textContent || document.title || "Claude 会话").replace(/\s+/g, " ").trim();
+  }
+
+  function buildConversationMarkdown() {
+    const title = currentConversationTitle();
+    const parts = [`# ${title}`, "", `导出时间：${new Date().toLocaleString()}`, ""];
+    const nodes = messageNodes();
+    const seen = new Set();
+    let lastRole = "";
+    nodes.forEach((node) => {
+      const text = rowVisibleText(node);
+      if (!text || seen.has(text)) return;
+      seen.add(text);
+      let role = messageRole(node);
+      if (!role && lastRole === "用户") role = "Claude";
+      role = role || "消息";
+      lastRole = role;
+      parts.push(`## ${role}`, "", text, "");
+    });
+    if (parts.length <= 4) {
+      const fallback = rowVisibleText(document.querySelector("main,[role='main']") || document.body);
+      if (fallback) parts.push("## 内容", "", fallback, "");
+    }
+    return parts.join("\n").replace(/\n{4,}/g, "\n\n\n");
+  }
+
+  function safeFileName(value) {
+    return String(value || "Claude 会话")
+      .replace(/[\\/:*?"<>|]+/g, "-")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 80) || "Claude 会话";
+  }
+
+  function timestampForFile() {
+    const pad = (value) => String(value).padStart(2, "0");
+    const date = new Date();
+    return `${date.getFullYear()}${pad(date.getMonth() + 1)}${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}${pad(date.getSeconds())}`;
+  }
+
+  function downloadMarkdown(markdown) {
+    const blob = new Blob([markdown], { type: "text/markdown;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${safeFileName(currentConversationTitle())}-${timestampForFile()}.md`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }
+
+  function activateExport(row, event) {
+    stopButtonEvent(event);
+    hideTooltip();
+    downloadMarkdown(buildConversationMarkdown());
+    showToast(`已导出：${rowTitle(row) || currentConversationTitle()}`);
+  }
+
+  function isNativeMoveControl(node) {
+    return /move|project|移动|移至|项目/i.test(menuCandidateText(node));
+  }
+
+  function discoverOrganizationUuid() {
+    const patterns = [
+      /\/api\/organizations\/([0-9a-f-]{12,})/i,
+      /"activeOrganization"\s*:\s*\{[^}]*"uuid"\s*:\s*"([0-9a-f-]{12,})"/i,
+      /"organization_uuid"\s*:\s*"([0-9a-f-]{12,})"/i,
+      /"orgUuid"\s*:\s*"([0-9a-f-]{12,})"/i
+    ];
+    const sources = [location.href, document.documentElement.innerHTML.slice(0, 300000)];
+    for (const storage of [localStorage, sessionStorage]) {
+      for (let index = 0; index < storage.length; index += 1) {
+        const key = storage.key(index);
+        if (!key) continue;
+        const value = storage.getItem(key) || "";
+        if (/org|organization|account|user|auth/i.test(key + value.slice(0, 200))) sources.push(`${key}:${value}`);
+      }
+    }
+    for (const source of sources) {
+      for (const pattern of patterns) {
+        const match = source.match(pattern);
+        if (match?.[1]) return match[1];
+      }
+    }
+    return "";
+  }
+
+  async function fetchProjects(orgUuid) {
+    const params = new URLSearchParams({
+      include_harmony_projects: "true",
+      limit: "100",
+      offset: "0",
+      order_by: "updated_at"
+    });
+    const response = await fetch(`/api/organizations/${orgUuid}/projects?${params}`, {
+      credentials: "include",
+      headers: { "Accept": "application/json" }
+    });
+    if (!response.ok) throw new Error(`projects ${response.status}`);
+    const data = await response.json();
+    const projects = Array.isArray(data) ? data : Array.isArray(data.data) ? data.data : Array.isArray(data.projects) ? data.projects : [];
+    return projects
+      .filter((project) => project && !project.archived_at && project.uuid && project.name)
+      .map((project) => ({ uuid: project.uuid, name: project.name }));
+  }
+
+  async function moveConversationToProject(conversationUuid, projectUuid) {
+    const orgUuid = discoverOrganizationUuid();
+    if (!orgUuid) throw new Error("missing organization uuid");
+    const response = await fetch(`/api/organizations/${orgUuid}/chat_conversations/move_many`, {
+      method: "POST",
+      credentials: "include",
+      headers: {
+        "Accept": "application/json",
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({ conversation_uuids: [conversationUuid], project_uuid: projectUuid || null })
+    });
+    if (!response.ok) throw new Error(`move ${response.status}`);
+    return response.json();
+  }
+
+  function showMoveDialog(row, projects) {
+    document.querySelectorAll(".claude-zh-cn-session-delete-confirm-overlay").forEach((node) => node.remove());
+    return new Promise((resolve) => {
+      const overlay = document.createElement("div");
+      overlay.className = "claude-zh-cn-session-delete-confirm-overlay";
+      const buttons = [
+        `<button type="button" data-claude-move-project="">普通对话</button>`,
+        ...projects.map((project) => `<button type="button" data-claude-move-project="${escapeHtml(project.uuid)}">${escapeHtml(project.name)}</button>`)
+      ].join("");
+      overlay.innerHTML = `
+        <div class="claude-zh-cn-session-delete-confirm-content" role="dialog" aria-modal="true" aria-label="移动会话">
+          <div class="claude-zh-cn-session-delete-confirm-title">移至项目</div>
+          <div class="claude-zh-cn-session-delete-confirm-message">移动“${escapeHtml(rowTitle(row) || "当前会话")}”</div>
+          <div class="claude-zh-cn-session-move-list">${buttons}</div>
+          <div class="claude-zh-cn-session-delete-confirm-actions">
+            <button type="button" data-claude-delete-cancel>取消</button>
+          </div>
+        </div>
+      `;
+      const finish = (value, event) => {
+        event?.preventDefault();
+        event?.stopPropagation();
+        overlay.remove();
+        resolve(value);
+      };
+      overlay.addEventListener("click", (event) => {
+        const moveButton = event.target.closest("[data-claude-move-project]");
+        if (moveButton) finish(moveButton.getAttribute("data-claude-move-project") || null, event);
+        if (event.target === overlay || event.target.closest("[data-claude-delete-cancel]")) finish(undefined, event);
+      }, true);
+      overlay.addEventListener("keydown", (event) => {
+        if (event.key === "Escape") finish(undefined, event);
+      }, true);
+      document.body.appendChild(overlay);
+      overlay.querySelector("[data-claude-move-project]")?.focus();
+    });
+  }
+
+  async function tryNativeMove(row) {
+    revealRowActions(row);
+    await new Promise((resolve) => setTimeout(resolve, 120));
+    const directMove = possibleNativeControls(row).find((node) => isNativeMoveControl(node));
+    if (directMove) {
+      clickNode(directMove);
+      return true;
+    }
+    const triggers = possibleNativeControls(row).filter(isMenuTrigger);
+    for (const trigger of triggers) {
+      clickNode(trigger);
+      for (const delay of [80, 180, 360, 700]) {
+        await new Promise((resolve) => setTimeout(resolve, delay));
+        const menus = [...document.querySelectorAll("[role='menu'],[data-radix-menu-content],[cmdk-list],body")];
+        for (const menu of menus) {
+          const item = [...menu.querySelectorAll("button,[role='menuitem'],[role='option'],[cmdk-item],div")]
+            .filter(visible)
+            .find(isNativeMoveControl);
+          if (item) {
+            clickNode(item);
+            return true;
+          }
+        }
+      }
+    }
+    return false;
+  }
+
+  async function activateMove(row, event) {
+    stopButtonEvent(event);
+    hideTooltip();
+    const conversationUuid = rowId(row) || currentConversationUuid();
+    if (conversationUuid) {
+      try {
+        const orgUuid = discoverOrganizationUuid();
+        if (!orgUuid) throw new Error("missing organization uuid");
+        showToast("正在读取项目列表…");
+        const projectUuid = await showMoveDialog(row, await fetchProjects(orgUuid));
+        if (projectUuid !== undefined) {
+          await moveConversationToProject(conversationUuid, projectUuid);
+          showToast(projectUuid ? "已移动到项目" : "已移至普通对话");
+          scheduleScan();
+          return;
+        }
+        return;
+      } catch (error) {
+        globalThis.__CLAUDE_ZH_CN_SESSION_MOVE_STATE__ = {
+          title: rowTitle(row),
+          id: conversationUuid,
+          href: rowHref(row),
+          updatedAt: new Date().toISOString(),
+          lastError: String(error?.message || error)
+        };
+        showToast(`移动接口失败：${String(error?.message || error)}`);
+      }
+    }
+    showToast("正在打开 Claude 自带移动入口…");
+    if (await tryNativeMove(row)) return;
+    globalThis.__CLAUDE_ZH_CN_SESSION_MOVE_STATE__ = {
+      title: rowTitle(row),
+      id: rowId(row),
+      href: rowHref(row),
+      updatedAt: new Date().toISOString(),
+      lastError: "未找到 Claude 自带移动入口"
+    };
+    showToast("未找到 Claude 自带移动入口，已记录诊断信息");
+  }
+
+  function actionButton(className, label, icon, handler, row) {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = `${ACTION_BUTTON_CLASS} ${className}`;
+    button.dataset.sessionDeleteVersion = VERSION;
+    button.setAttribute("aria-label", label);
+    button.innerHTML = icon;
+    ["pointerdown", "mousedown", "mouseup", "touchstart"].forEach((eventName) => {
+      button.addEventListener(eventName, stopButtonEvent, true);
+    });
+    button.addEventListener("pointerenter", () => showTooltip(button, label));
+    button.addEventListener("pointerleave", hideTooltip);
+    button.addEventListener("focus", () => showTooltip(button, label));
+    button.addEventListener("blur", hideTooltip);
+    button.addEventListener("click", (event) => handler(row, event), true);
+    return button;
+  }
+
+  function attachRow(row) {
+    if (!looksLikeSidebarSessionRow(row)) return;
+    row.setAttribute(ROW_FLAG, "true");
+    const existing = row.querySelector(`.${ACTION_BUTTON_CLASS}:not(.${PORTAL_BUTTON_CLASS})`);
+    if (existing?.dataset.sessionDeleteVersion === VERSION) return;
+    row.querySelectorAll(`.${ACTION_BUTTON_CLASS}:not(.${PORTAL_BUTTON_CLASS})`).forEach((node) => node.remove());
+    row.appendChild(actionButton(MOVE_BUTTON_CLASS, "移动", moveIconSvg(), activateMove, row));
+    row.appendChild(actionButton(EXPORT_BUTTON_CLASS, "导出", exportIconSvg(), activateExport, row));
+    row.appendChild(actionButton(BUTTON_CLASS, "删除", trashIconSvg(), activateDelete, row));
+  }
+
+  function cleanupRejectedRows() {
+    document.querySelectorAll(`[${ROW_FLAG}="true"]`).forEach((row) => {
+      if (looksLikeSidebarSessionRow(row)) return;
+      row.removeAttribute(ROW_FLAG);
+      row.querySelectorAll(`.${ACTION_BUTTON_CLASS}:not(.${PORTAL_BUTTON_CLASS})`).forEach((node) => node.remove());
+    });
+  }
+
+  function candidateRows() {
+    const rows = new Map();
+    recentSectionRoots().forEach(({ panel }) => {
+      panel.querySelectorAll(RECENTS_ROW_CANDIDATE_SELECTORS).forEach((node) => {
+        const row = recentsRowContainer(node);
+        const normalized = normalizeRecentsRow(row);
+        if (!looksLikeSidebarSessionRow(normalized)) return;
+        const key = recentsRowKey(normalized);
+        if (!key) return;
+        rows.set(key, preferRecentsRow(rows.get(key), normalized));
+      });
+    });
+    return [...rows.values()];
+  }
+
+  function candidateRowSamples(rows) {
+    return rows.slice(0, 12).map((row) => {
+      const rect = row.getBoundingClientRect?.();
+      return {
+        tag: row.tagName,
+        title: rowTitle(row),
+        text: rowVisibleText(row).slice(0, 120),
+        id: rowId(row),
+        href: rowHref(row),
+        signal: hasSessionSignal(row),
+        rejectReason: sessionRowRejectReason(row),
+        rect: rect ? { x: Math.round(rect.x), y: Math.round(rect.y), width: Math.round(rect.width), height: Math.round(rect.height) } : null
+      };
+    });
+  }
+
+  function userQuestionNodes() {
+    const nodes = messageNodes().filter((node) => messageRole(node) === "用户");
+    if (nodes.length) return nodes;
+    return [...document.querySelectorAll("main [data-message-author-role='user'],main [data-author='user']")].filter(visible);
+  }
+
+  function summarizeQuestion(text) {
+    return String(text || "")
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 64);
+  }
+
+  function ensureTimeline() {
+    let timeline = document.getElementById(TIMELINE_ID);
+    if (timeline) return timeline;
+    timeline = document.createElement("div");
+    timeline.id = TIMELINE_ID;
+    timeline.setAttribute("aria-label", "对话时间线");
+    document.body.appendChild(timeline);
+    return timeline;
+  }
+
+  function renderTimeline() {
+    const timeline = ensureTimeline();
+    const questions = userQuestionNodes().slice(0, 80);
+    timeline.innerHTML = "";
+    questions.forEach((node, index) => {
+      if (!node.id) node.id = `claude-zh-cn-user-question-${index + 1}`;
+      const summary = summarizeQuestion(rowVisibleText(node));
+      if (!summary) return;
+      const button = document.createElement("button");
+      button.type = "button";
+      const summaryNode = document.createElement("span");
+      summaryNode.className = "claude-zh-cn-timeline-summary";
+      summaryNode.textContent = summary;
+      button.appendChild(summaryNode);
+      button.title = summary;
+      button.addEventListener("click", (event) => {
+        stopButtonEvent(event);
+        node.scrollIntoView({ block: "center", behavior: "smooth" });
+      }, true);
+      timeline.appendChild(button);
+    });
+    globalThis.__CLAUDE_ZH_CN_CONVERSATION_TIMELINE_STATE__ = {
+      version: VERSION,
+      count: timeline.children.length,
+      updatedAt: new Date().toISOString()
+    };
+  }
+
+  let timelineTimer = 0;
+  function scheduleTimelineRender() {
+    clearTimeout(timelineTimer);
+    timelineTimer = setTimeout(renderTimeline, 320);
+  }
+
+  function currentScrollKey() {
+    return `${SCROLL_STORAGE_PREFIX}${location.pathname}${location.search}`;
+  }
+
+  function scrollContainer() {
+    const candidates = [
+      document.querySelector("main"),
+      document.querySelector("[role='main']"),
+      document.scrollingElement,
+      document.documentElement
+    ].filter(Boolean);
+    return candidates.find((node) => node.scrollHeight > node.clientHeight + 20) || document.scrollingElement || document.documentElement;
+  }
+
+  function rememberScrollPosition() {
+    try {
+      const container = scrollContainer();
+      sessionStorage.setItem(currentScrollKey(), String(container.scrollTop || window.scrollY || 0));
+    } catch {
+      return;
+    }
+  }
+
+  function restoreScrollPosition() {
+    try {
+      const stored = sessionStorage.getItem(currentScrollKey());
+      if (stored == null) return;
+      const value = Number(stored);
+      if (!Number.isFinite(value)) return;
+      const container = scrollContainer();
+      setTimeout(() => {
+        container.scrollTop = value;
+        if (container === document.scrollingElement || container === document.documentElement) window.scrollTo(window.scrollX, value);
+      }, 160);
+    } catch {
+      return;
+    }
+  }
+
+  function centeredLayoutWidth() {
+    const raw = localStorage.getItem(CENTERED_WIDTH_KEY) || "980";
+    const value = Number(String(raw).replace(/[^\d.]/g, ""));
+    if (!Number.isFinite(value)) return 980;
+    return Math.max(640, Math.min(1600, Math.round(value)));
+  }
+
+  function isThirdPartyProviderSettingsPage() {
+    const root = document.querySelector("main,[role='main']") || document.body;
+    const text = (root?.innerText || "").slice(0, 12000);
+    const hasProviderTitle = /(管理第三方供应商|第三方供应商|Manage third-party|Inference provider)/i.test(text);
+    const hasProviderFields = /(第三方认证方案|自定义推理标头|Authorization|x-api-key|模型发现|测试模型发现|Gateway base URL|Gateway API key)/i.test(text);
+    return hasProviderTitle && hasProviderFields;
+  }
+
+  function shouldShowCenteredLayoutControls() {
+    return !isThirdPartyProviderSettingsPage();
+  }
+
+  function applyCenteredLayout(enabled) {
+    document.documentElement.style.setProperty("--claude-zh-cn-centered-width", `${centeredLayoutWidth()}px`);
+    document.documentElement.classList.toggle(CENTERED_CLASS, !!enabled);
+    const button = document.getElementById(CENTERED_TOGGLE_ID);
+    if (button) {
+      const showControl = shouldShowCenteredLayoutControls();
+      button.style.display = showControl ? "" : "none";
+      if (!showControl) document.querySelectorAll(".claude-zh-cn-centered-width-dialog").forEach((node) => node.remove());
+      button.textContent = enabled ? `居中 ${centeredLayoutWidth()}` : "居中关";
+      button.title = "点击开关，右键或双击设置宽度";
+      button.setAttribute("aria-pressed", enabled ? "true" : "false");
+    }
+  }
+
+  function centeredLayoutEnabled() {
+    return localStorage.getItem("claude-zh-cn-centered-layout") === "1";
+  }
+
+  function toggleCenteredLayout(event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    const next = !centeredLayoutEnabled();
+    localStorage.setItem("claude-zh-cn-centered-layout", next ? "1" : "0");
+    applyCenteredLayout(next);
+  }
+
+  function showCenteredWidthDialog(event) {
+    event?.preventDefault();
+    event?.stopPropagation();
+    document.querySelectorAll(".claude-zh-cn-centered-width-dialog").forEach((node) => node.remove());
+    const dialog = document.createElement("div");
+    dialog.className = "claude-zh-cn-centered-width-dialog";
+    dialog.innerHTML = `
+      <label>自定义居中宽度</label>
+      <input type="number" min="640" max="1600" step="20" value="${centeredLayoutWidth()}" aria-label="居中宽度">
+      <div class="claude-zh-cn-centered-width-dialog-actions">
+        <button type="button" data-centered-cancel>取消</button>
+        <button type="button" data-centered-save>保存</button>
+      </div>
+    `;
+    const close = () => dialog.remove();
+    const save = () => {
+      const input = dialog.querySelector("input");
+      const next = Number(String(input?.value || "").replace(/[^\d.]/g, ""));
+      if (Number.isFinite(next)) localStorage.setItem(CENTERED_WIDTH_KEY, String(Math.max(640, Math.min(1600, Math.round(next)))));
+      localStorage.setItem("claude-zh-cn-centered-layout", "1");
+      applyCenteredLayout(true);
+      close();
+    };
+    dialog.addEventListener("click", (clickEvent) => {
+      clickEvent.stopPropagation();
+      if (clickEvent.target.closest("[data-centered-save]")) save();
+      if (clickEvent.target.closest("[data-centered-cancel]")) close();
+    }, true);
+    dialog.addEventListener("keydown", (keyEvent) => {
+      if (keyEvent.key === "Enter") save();
+      if (keyEvent.key === "Escape") close();
+    }, true);
+    document.body.appendChild(dialog);
+    dialog.querySelector("input")?.focus();
+  }
+
+  function ensureCenteredLayoutToggle() {
+    if (document.getElementById(CENTERED_TOGGLE_ID)) return;
+    const button = document.createElement("button");
+    button.id = CENTERED_TOGGLE_ID;
+    button.type = "button";
+    button.addEventListener("click", toggleCenteredLayout, true);
+    button.addEventListener("contextmenu", showCenteredWidthDialog, true);
+    button.addEventListener("dblclick", showCenteredWidthDialog, true);
+    document.body.appendChild(button);
+    applyCenteredLayout(centeredLayoutEnabled());
+  }
+
+  function scanRows() {
+    try {
+      const startedAt = performance?.now?.() || Date.now();
+      invalidateScanCache();
+      installStyle();
+      cleanupPortalButton();
+      ensureCenteredLayoutToggle();
+      cleanupRejectedRows();
+      const rows = candidateRows();
+      rows.forEach(attachRow);
+      globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_SCAN_STATE__ = {
+        version: VERSION,
+        panelCount: sessionPanelRoots().length,
+        sectionCount: recentSectionRoots().length,
+        candidateCount: rows.length,
+        attachedCount: document.querySelectorAll(`.${ACTION_BUTTON_CLASS}:not(.${PORTAL_BUTTON_CLASS})`).length,
+        candidates: candidateRowSamples(rows),
+        portalButton: !!portalButton,
+        portalVisible: portalButton?.dataset.visible === "true",
+        activeTitle: activeRow ? rowTitle(activeRow) : "",
+        exportButtonCount: document.querySelectorAll(`.${EXPORT_BUTTON_CLASS}`).length,
+        moveButtonCount: document.querySelectorAll(`.${MOVE_BUTTON_CLASS}`).length,
+        timelineCount: document.getElementById(TIMELINE_ID)?.children.length || 0,
+        centeredLayout: centeredLayoutEnabled(),
+        scanDurationMs: Math.round(((performance?.now?.() || Date.now()) - startedAt) * 10) / 10,
+        lastError: "",
+        updatedAt: new Date().toISOString()
+      };
+    } catch (error) {
+      const lastError = String(error?.message || error);
+      globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_SCAN_STATE__ = {
+        version: VERSION,
+        panelCount: 0,
+        sectionCount: 0,
+        candidateCount: 0,
+        attachedCount: document.querySelectorAll(`.${ACTION_BUTTON_CLASS}:not(.${PORTAL_BUTTON_CLASS})`).length,
+        candidates: [],
+        portalButton: !!portalButton,
+        portalVisible: portalButton?.dataset.visible === "true",
+        activeTitle: activeRow ? rowTitle(activeRow) : "",
+        exportButtonCount: document.querySelectorAll(`.${EXPORT_BUTTON_CLASS}`).length,
+        moveButtonCount: document.querySelectorAll(`.${MOVE_BUTTON_CLASS}`).length,
+        timelineCount: document.getElementById(TIMELINE_ID)?.children.length || 0,
+        centeredLayout: centeredLayoutEnabled(),
+        lastError,
+        updatedAt: new Date().toISOString()
+      };
+    }
+  }
+
+  let scanTimer = 0;
+  function scheduleScan() {
+    clearTimeout(scanTimer);
+    scanTimer = setTimeout(scanRows, 180);
+  }
+
+  function nodeTouchesSidebar(node) {
+    if (!node || node.nodeType !== 1) return false;
+    if (node.closest?.(SIDEBAR_CONTAINER_SELECTORS) || node.matches?.(SIDEBAR_CONTAINER_SELECTORS)) return true;
+    if (node.closest?.(MAIN_CONTAINER_SELECTORS) || node.matches?.(MAIN_CONTAINER_SELECTORS)) return false;
+    return !!node.querySelector?.(SIDEBAR_CONTAINER_SELECTORS)
+      || !!node.matches?.(SESSION_SIGNAL_SELECTORS)
+      || !!node.querySelector?.(SESSION_SIGNAL_SELECTORS);
+  }
+
+  function nodeTouchesMain(node) {
+    if (!node || node.nodeType !== 1) return false;
+    if (node.closest?.(MAIN_CONTAINER_SELECTORS) || node.matches?.(MAIN_CONTAINER_SELECTORS)) return true;
+    if (node.closest?.(SIDEBAR_CONTAINER_SELECTORS) || node.matches?.(SIDEBAR_CONTAINER_SELECTORS)) return false;
+    return !!node.querySelector?.(MAIN_CONTAINER_SELECTORS);
+  }
+
+  function handlePageMutations(mutations) {
+    const list = Array.from(mutations || []);
+    if (!list.length) {
+      scheduleScan();
+      scheduleTimelineRender();
+      return;
+    }
+    let sidebarChanged = false;
+    let mainChanged = false;
+    for (const mutation of list) {
+      const nodes = [
+        mutation.target,
+        ...Array.from(mutation.addedNodes || []),
+        ...Array.from(mutation.removedNodes || [])
+      ];
+      if (!sidebarChanged && nodes.some(nodeTouchesSidebar)) sidebarChanged = true;
+      if (!mainChanged && nodes.some(nodeTouchesMain)) mainChanged = true;
+      if (sidebarChanged && mainChanged) break;
+    }
+    if (sidebarChanged) scheduleScan();
+    if (mainChanged) scheduleTimelineRender();
+  }
+
+  function start() {
+    scanRows();
+    scheduleTimelineRender();
+    restoreScrollPosition();
+    window.removeEventListener("scroll", rememberScrollPosition, true);
+    window.addEventListener("scroll", rememberScrollPosition, true);
+    window.removeEventListener("beforeunload", rememberScrollPosition, true);
+    window.addEventListener("beforeunload", rememberScrollPosition, true);
+    window.__CLAUDE_ZH_CN_SESSION_DELETE_OBSERVER__?.disconnect?.();
+    window.__CLAUDE_ZH_CN_SESSION_DELETE_OBSERVER__ = new MutationObserver(handlePageMutations);
+    window.__CLAUDE_ZH_CN_SESSION_DELETE_OBSERVER__.observe(document.body || document.documentElement, {
+      childList: true,
+      subtree: true,
+      attributes: true,
+      attributeFilter: ["href", "title", "aria-label", "aria-current", "data-session-id", "data-thread-id", "data-conversation-id", "data-chat-id", "data-app-action-sidebar-thread-id", "class"]
+    });
+    window.__CLAUDE_ZH_CN_SESSION_DELETE_INTERVAL__ && clearInterval(window.__CLAUDE_ZH_CN_SESSION_DELETE_INTERVAL__);
+    window.__CLAUDE_ZH_CN_SESSION_DELETE_INTERVAL__ = setInterval(() => {
+      rememberScrollPosition();
+    }, 4000);
+  }
+
+  if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", start, { once: true });
+  else start();
+  if (globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_DEBUG__) {
+    globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_DEBUG_API__ = {
+      sessionPanelRoots,
+      recentSectionRoots,
+      sessionRowRejectReason,
+      candidateRows,
+      looksLikeSidebarSessionRow,
+      normalizeRecentsRow,
+      recentsRowContainer,
+      hasSessionSignal,
+      isCurrentSidebarItem,
+      isInsideRecentsSection,
+      messageNodes,
+      messageRole,
+      buildConversationMarkdown
+    };
+  }
+})();
+'''.strip()
+    return "\n".join([
+        "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_BEGIN__",
+        body,
+        "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_END__",
     ])
 
 
@@ -591,6 +2507,47 @@ def patch_font_runtime(assets_dir: Path) -> int:
     return changed
 
 
+def patch_session_delete_runtime(assets_dir: Path) -> int:
+    """Inject hover delete action into the entry bundle."""
+    candidates = sorted(assets_dir.glob("index-*.js"))
+    if not candidates:
+        print("Warning: no index-*.js found; skipping session delete runtime patch")
+        return 0
+
+    script = session_delete_inject_script()
+    marker = "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__"
+    begin_marker = "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_BEGIN__"
+    end_marker = "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_END__"
+    changed = 0
+    for path in candidates:
+        backup_file(path, assets_dir)
+        content = path.read_text(encoding="utf-8")
+        if begin_marker in content and end_marker in content:
+            start = content.index(begin_marker)
+            end = content.index(end_marker, start) + len(end_marker)
+            new_content = content[:start].rstrip() + "\n" + script + "\n" + content[end:].lstrip()
+            action = "updated session delete runtime"
+        elif marker in content:
+            marker_pos = content.index(marker)
+            start = content.rfind(";(()=>{", 0, marker_pos)
+            if start == -1:
+                start = marker_pos
+            legacy_end = content.find("})();", marker_pos)
+            end = legacy_end + len("})();") if legacy_end != -1 else len(content)
+            new_content = content[:start].rstrip() + "\n" + script + "\n" + content[end:].lstrip()
+            action = "replaced legacy session delete runtime"
+        else:
+            new_content = content.rstrip() + "\n" + script + "\n"
+            action = "injected session delete runtime"
+
+        if new_content == content:
+            continue
+        if write_text_best_effort(path, new_content, context="session delete runtime patch"):
+            changed += 1
+            print(f"  {path.name}: {action}")
+    return changed
+
+
 def patch_assets_tree(app_resources: Path) -> int:
     """Patch every discovered assets version directory."""
     assets_dirs = iter_assets_dirs(app_resources)
@@ -618,6 +2575,10 @@ def patch_assets_tree(app_resources: Path) -> int:
         font_patches = patch_font_runtime(assets_dir)
         if font_patches:
             total += font_patches
+
+        session_patches = patch_session_delete_runtime(assets_dir)
+        if session_patches:
+            total += session_patches
 
     return total
 
@@ -677,6 +2638,53 @@ PATCHES["__claude_zh_cn_hardcoded_ui__.js"] = [
     ('"Enable remote control by default"', '"\u9ed8\u8ba4\u542f\u7528\u8fdc\u7a0b\u63a7\u5236"'),
     ('"Automatically connect new local sessions to Remote Control so you can continue them from the CLI or claude.ai/code."', '"\u81ea\u52a8\u5c06\u65b0\u7684\u672c\u5730\u4f1a\u8bdd\u8fde\u63a5\u5230\u8fdc\u7a0b\u63a7\u5236\uff0c\u4ee5\u4fbf\u4f60\u53ef\u4ee5\u4ece CLI \u6216 claude.ai/code \u7ee7\u7eed\u4f7f\u7528\u3002"'),
     ('"When Claude pushes changes to a branch, it automatically opens a pull request without asking first. Applies to remote sessions only."', '"Claude \u5c06\u66f4\u6539\u63a8\u9001\u5230\u5206\u652f\u65f6\uff0c\u4f1a\u81ea\u52a8\u6253\u5f00\u62c9\u53d6\u8bf7\u6c42\uff0c\u800c\u4e0d\u4f1a\u5148\u8be2\u95ee\u3002\u4ec5\u9002\u7528\u4e8e\u8fdc\u7a0b\u4f1a\u8bdd\u3002"'),
+    ('"Discard Changes"', '"\u653e\u5f03\u66f4\u6539"'),
+    ('"Discard changes"', '"\u653e\u5f03\u66f4\u6539"'),
+    ('"Discard changes?"', '"\u653e\u5f03\u66f4\u6539\uff1f"'),
+    ('"Apply Changes"', '"\u5e94\u7528\u66f4\u6539"'),
+    ('"Apply changes"', '"\u5e94\u7528\u66f4\u6539"'),
+    ('"Shown in the model picker. Leave blank to auto-format from the ID."', '"\u663e\u793a\u5728\u6a21\u578b\u9009\u62e9\u5668\u4e2d\u3002\u7559\u7a7a\u5c06\u6839\u636e ID \u81ea\u52a8\u683c\u5f0f\u5316\u3002"'),
+    ('"Offer 1M-context variant"', '"\u63d0\u4f9b 1M \u4e0a\u4e0b\u6587\u53d8\u4f53"'),
+    ('"Model ID"', '"\u6a21\u578b ID"'),
+    ('"Allowed surfaces"', '"\u5141\u8bb8\u7684\u529f\u80fd\u754c\u9762"'),
+    ('"Enable the Cowork tab. Claude works on longer tasks like research, analysis, and documents."', '"\u542f\u7528 Cowork \u6807\u7b7e\u9875\u3002Claude \u53ef\u5904\u7406\u7814\u7a76\u3001\u5206\u6790\u548c\u6587\u6863\u7b49\u957f\u4efb\u52a1\u3002"'),
+    ('"Enable the Code tab. Claude writes and runs code."', '"\u542f\u7528 Code \u6807\u7b7e\u9875\u3002Claude \u53ef\u7f16\u5199\u5e76\u8fd0\u884c\u4ee3\u7801\u3002"'),
+    ('"General restrictions"', '"\u901a\u7528\u9650\u5236"'),
+    ('"These apply regardless of which surfaces are enabled."', '"\u65e0\u8bba\u542f\u7528\u54ea\u4e9b\u529f\u80fd\u754c\u9762\uff0c\u8fd9\u4e9b\u9650\u5236\u90fd\u4f1a\u751f\u6548\u3002"'),
+    ('"Hostnames the agent\'s tools may reach from the Cowork and Code tabs. Also surfaced under Egress Requirements."', '"Agent \u5de5\u5177\u53ef\u4ece Cowork \u548c Code \u6807\u7b7e\u9875\u8bbf\u95ee\u7684\u4e3b\u673a\u540d\u3002\u4e5f\u4f1a\u663e\u793a\u5728\u51fa\u53e3\u8981\u6c42\u4e2d\u3002"'),
+    ('"Applies to both the Cowork and Code tabs."', '"\u540c\u65f6\u9002\u7528\u4e8e Cowork \u548c Code \u6807\u7b7e\u9875\u3002"'),
+    ('Applies to both the Cowork and Code tabs.', '\u540c\u65f6\u9002\u7528\u4e8e Cowork \u548c Code \u6807\u7b7e\u9875\u3002'),
+    ('"Only affects **tool calls**. Inference and MCP traffic are covered by their own allowlists elsewhere."', '"\u4ec5\u5f71\u54cd **\u5de5\u5177\u8c03\u7528**\u3002\u63a8\u7406\u548c MCP \u6d41\u91cf\u7531\u5176\u4ed6\u4f4d\u7f6e\u7684\u5141\u8bb8\u5217\u8868\u63a7\u5236\u3002"'),
+    ('Only affects **tool calls**. Inference and MCP traffic are covered by their own allowlists elsewhere.', '\u4ec5\u5f71\u54cd **\u5de5\u5177\u8c03\u7528**\u3002\u63a8\u7406\u548c MCP \u6d41\u91cf\u7531\u5176\u4ed6\u4f4d\u7f6e\u7684\u5141\u8bb8\u5217\u8868\u63a7\u5236\u3002'),
+    ('"When unset, only the inference endpoint is reachable from the sandbox; the agent\'s package installs (pip/npm) and web fetches will fail with a 403."', '"\u672a\u8bbe\u7f6e\u65f6\uff0c\u6c99\u76d2\u53ea\u80fd\u8bbf\u95ee\u63a8\u7406\u7aef\u70b9\uff1bAgent \u7684\u5305\u5b89\u88c5\uff08pip/npm\uff09\u548c\u7f51\u9875\u6293\u53d6\u5c06\u56e0 403 \u5931\u8d25\u3002"'),
+    ('When unset, only the inference endpoint is reachable from the sandbox; the agent\'s package installs (pip/npm) and web fetches will fail with a 403.', '\u672a\u8bbe\u7f6e\u65f6\uff0c\u6c99\u76d2\u53ea\u80fd\u8bbf\u95ee\u63a8\u7406\u7aef\u70b9\uff1bAgent \u7684\u5305\u5b89\u88c5\uff08pip/npm\uff09\u548c\u7f51\u9875\u6293\u53d6\u5c06\u56e0 403 \u5931\u8d25\u3002'),
+    ('"Accepts exact hostnames (`api.github.com`), wildcards (`*.corp.com` matches one subdomain level), and `*` to allow all."', '"\u63a5\u53d7\u7cbe\u786e\u4e3b\u673a\u540d\uff08`api.github.com`\uff09\u3001\u901a\u914d\u7b26\uff08`*.corp.com` \u5339\u914d\u4e00\u7ea7\u5b50\u57df\uff09\u548c `*`\uff08\u5141\u8bb8\u5168\u90e8\uff09\u3002"'),
+    ('Accepts exact hostnames (`api.github.com`), wildcards (`*.corp.com` matches one subdomain level), and `*` to allow all.', '\u63a5\u53d7\u7cbe\u786e\u4e3b\u673a\u540d\uff08`api.github.com`\uff09\u3001\u901a\u914d\u7b26\uff08`*.corp.com` \u5339\u914d\u4e00\u7ea7\u5b50\u57df\uff09\u548c `*`\uff08\u5141\u8bb8\u5168\u90e8\uff09\u3002'),
+    ('"Wildcards don\'t cross schemes. `*.corp.com` matches `docs.corp.com` but not `corp.com` itself; add both if you need the apex."', '"\u901a\u914d\u7b26\u4e0d\u8de8\u8d8a\u5c42\u7ea7\u3002`*.corp.com` \u5339\u914d `docs.corp.com`\uff0c\u4e0d\u5339\u914d `corp.com` \u672c\u8eab\uff1b\u9700\u8981\u9876\u7ea7\u57df\u65f6\u8bf7\u540c\u65f6\u6dfb\u52a0\u4e24\u8005\u3002"'),
+    ('Wildcards don\'t cross schemes. `*.corp.com` matches `docs.corp.com` but not `corp.com` itself; add both if you need the apex.', '\u901a\u914d\u7b26\u4e0d\u8de8\u8d8a\u5c42\u7ea7\u3002`*.corp.com` \u5339\u914d `docs.corp.com`\uff0c\u4e0d\u5339\u914d `corp.com` \u672c\u8eab\uff1b\u9700\u8981\u9876\u7ea7\u57df\u65f6\u8bf7\u540c\u65f6\u6dfb\u52a0\u4e24\u8005\u3002'),
+    ('"IP literals and localhost always resolve regardless of this list; this is a public-egress filter, not a sandbox."', '"IP \u5b57\u9762\u91cf\u548c localhost \u59cb\u7ec8\u53ef\u89e3\u6790\uff0c\u4e0d\u53d7\u6b64\u5217\u8868\u5f71\u54cd\uff1b\u8fd9\u662f\u516c\u5171\u51fa\u7ad9\u8fc7\u6ee4\u5668\uff0c\u4e0d\u662f\u6c99\u76d2\u3002"'),
+    ('IP literals and localhost always resolve regardless of this list; this is a public-egress filter, not a sandbox.', 'IP \u5b57\u9762\u91cf\u548c localhost \u59cb\u7ec8\u53ef\u89e3\u6790\uff0c\u4e0d\u53d7\u6b64\u5217\u8868\u5f71\u54cd\uff1b\u8fd9\u662f\u516c\u5171\u51fa\u7ad9\u8fc7\u6ee4\u5668\uff0c\u4e0d\u662f\u6c99\u76d2\u3002'),
+    ('"Hosts you add here also need to be open on your network firewall. See Egress Requirements for the full allowlist."', '"\u4f60\u5728\u6b64\u6dfb\u52a0\u7684\u4e3b\u673a\u4e5f\u9700\u5728\u7f51\u7edc\u9632\u706b\u5899\u4e0a\u5f00\u653e\u3002\u5b8c\u6574\u5141\u8bb8\u5217\u8868\u8bf7\u67e5\u770b\u51fa\u53e3\u8981\u6c42\u3002"'),
+    ('Hosts you add here also need to be open on your network firewall. See Egress Requirements for the full allowlist.', '\u4f60\u5728\u6b64\u6dfb\u52a0\u7684\u4e3b\u673a\u4e5f\u9700\u5728\u7f51\u7edc\u9632\u706b\u5899\u4e0a\u5f00\u653e\u3002\u5b8c\u6574\u5141\u8bb8\u5217\u8868\u8bf7\u67e5\u770b\u51fa\u53e3\u8981\u6c42\u3002'),
+    ('"Discard unsaved changes?"', '"\u653e\u5f03\u672a\u4fdd\u5b58\u7684\u66f4\u6539\uff1f"'),
+    ('"This configuration has changes that haven\'t been saved. They will be lost."', '"\u6b64\u914d\u7f6e\u6709\u672a\u4fdd\u5b58\u7684\u66f4\u6539\u3002\u8fd9\u4e9b\u66f4\u6539\u5c06\u4e22\u5931\u3002"'),
+    ('"Keep editing"', '"\u7ee7\u7eed\u7f16\u8f91"'),
+    ('defaultMessage:"Discard",id:"nmpevlUATU"', 'defaultMessage:"\u653e\u5f03",id:"nmpevlUATU"'),
+    ('"High-contrast dark theme"', '"\u9ad8\u5bf9\u6bd4\u5ea6\u6df1\u8272\u4e3b\u9898"'),
+    ('"Use a darker, near-black background when dark mode is on."', '"\u6df1\u8272\u6a21\u5f0f\u5f00\u542f\u65f6\u4f7f\u7528\u66f4\u6df1\u3001\u63a5\u8fd1\u7eaf\u9ed1\u7684\u80cc\u666f\u3002"'),
+    ('defaultMessage:"Small",id:"BPnT3TVya+"', 'defaultMessage:"\u5c0f",id:"BPnT3TVya+"'),
+    ('defaultMessage:"Medium",id:"ovJ26CKo4Q"', 'defaultMessage:"\u4e2d",id:"ovJ26CKo4Q"'),
+    ('defaultMessage:"Large",id:"/06iwcQHPz"', 'defaultMessage:"\u5927",id:"/06iwcQHPz"'),
+    ('"Dynamic workflows"', '"\u52a8\u6001\u5de5\u4f5c\u6d41"'),
+    ('"Let Claude run multiple agents in parallel for complex tasks. Workflows can use a lot of your usage limit quickly."', '"\u5141\u8bb8 Claude \u4e3a\u590d\u6742\u4efb\u52a1\u5e76\u884c\u8fd0\u884c\u591a\u4e2a Agent\u3002\u5de5\u4f5c\u6d41\u53ef\u80fd\u5f88\u5feb\u6d88\u8017\u4f60\u7684\u4f7f\u7528\u989d\u5ea6\u3002"'),
+    ('"Dynamic workflows run many subagents in parallel and can use a lot of your usage limit. Stop them any time from the <link>tasks panel</link>."', '"\u52a8\u6001\u5de5\u4f5c\u6d41\u4f1a\u5e76\u884c\u8fd0\u884c\u591a\u4e2a\u5b50 Agent\uff0c\u5e76\u53ef\u80fd\u6d88\u8017\u5927\u91cf\u4f7f\u7528\u989d\u5ea6\u3002\u4f60\u53ef\u968f\u65f6\u4ece<link>\u4efb\u52a1\u9762\u677f</link>\u505c\u6b62\u5b83\u4eec\u3002"'),
+    ('"Dynamic workflows are disabled by your organization\'s policy."', '"\u52a8\u6001\u5de5\u4f5c\u6d41\u5df2\u88ab\u4f60\u7684\u7ec4\u7ec7\u7b56\u7565\u7981\u7528\u3002"'),
+    ('"Cowork files"', '"Cowork \u6587\u4ef6"'),
+    ('"Your artifacts and scheduled tasks are stored at {path}."', '"\u4f60\u7684\u5de5\u4ef6\u548c\u8ba1\u5212\u4efb\u52a1\u5b58\u50a8\u5728 {path}\u3002"'),
+    ('"Change location for Cowork files?"', '"\u66f4\u6539 Cowork \u6587\u4ef6\u4f4d\u7f6e\uff1f"'),
+    ('"Copy files to {location} and restart the app. Your existing files will remain in {previousLocation}."', '"\u5c06\u6587\u4ef6\u590d\u5236\u5230 {location} \u5e76\u91cd\u542f\u5e94\u7528\u3002\u4f60\u7684\u73b0\u6709\u6587\u4ef6\u5c06\u4fdd\u7559\u5728 {previousLocation}\u3002"'),
+    ('"{provider} returned an error"', '"{provider} \u8fd4\u56de\u9519\u8bef"'),
+    ('"Your connection works, but the provider rejected a test request. Often a model-access or quota issue."', '"\u8fde\u63a5\u6b63\u5e38\uff0c\u4f46\u63d0\u4f9b\u5546\u62d2\u7edd\u4e86\u6d4b\u8bd5\u8bf7\u6c42\u3002\u8fd9\u901a\u5e38\u662f\u6a21\u578b\u8bbf\u95ee\u6743\u9650\u6216\u914d\u989d\u95ee\u9898\u3002"'),
     ('"Connectors have moved to Customize. Head there to browse, connect, and manage them."', '"\u8fde\u63a5\u5668\u5df2\u79fb\u81f3\u201c\u81ea\u5b9a\u4e49\u201d\u3002\u524d\u5f80\u90a3\u91cc\u6d4f\u89c8\u3001\u8fde\u63a5\u548c\u7ba1\u7406\u8fde\u63a5\u5668\u3002"'),
     ('Connectors have moved to Customize. Head there to browse, connect, and manage them.', '\u8fde\u63a5\u5668\u5df2\u79fb\u81f3\u201c\u81ea\u5b9a\u4e49\u201d\u3002\u524d\u5f80\u90a3\u91cc\u6d4f\u89c8\u3001\u8fde\u63a5\u548c\u7ba1\u7406\u8fde\u63a5\u5668\u3002'),
     ('"Connectors have moved to <link>Customize</link>. Head there to browse, connect, and manage them."', '"\u8fde\u63a5\u5668\u5df2\u79fb\u81f3<link>\u81ea\u5b9a\u4e49</link>\u3002\u524d\u5f80\u90a3\u91cc\u6d4f\u89c8\u3001\u8fde\u63a5\u548c\u7ba1\u7406\u8fde\u63a5\u5668\u3002"'),
@@ -688,6 +2696,8 @@ PATCHES["__claude_zh_cn_hardcoded_ui__.js"] = [
     ('"Create dynamic artifacts that stay up-to-date using live data from your connectors."', '"\u4f7f\u7528\u6765\u81ea\u8fde\u63a5\u5668\u7684\u5b9e\u65f6\u6570\u636e\uff0c\u521b\u5efa\u4fdd\u6301\u66f4\u65b0\u7684\u52a8\u6001\u5de5\u4ef6\u3002"'),
     ('Create dynamic artifacts that stay up-to-date using live data from your connectors.', '\u4f7f\u7528\u6765\u81ea\u8fde\u63a5\u5668\u7684\u5b9e\u65f6\u6570\u636e\uff0c\u521b\u5efa\u4fdd\u6301\u66f4\u65b0\u7684\u52a8\u6001\u5de5\u4ef6\u3002'),
     ('"Create dynamic artifacts that stay up-to-date using live data from <link>your connectors</link>."', '"\u4f7f\u7528\u6765\u81ea<link>\u4f60\u7684\u8fde\u63a5\u5668</link>\u7684\u5b9e\u65f6\u6570\u636e\uff0c\u521b\u5efa\u4fdd\u6301\u66f4\u65b0\u7684\u52a8\u6001\u5de5\u4ef6\u3002"'),
+    ('"Claude will keep these in mind across chats and Cowork within <aupLink>Anthropic\'s guidelines</aupLink>. <learnMoreLink>Learn more</learnMoreLink>"', '"Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa<aupLink>Anthropic \u7684\u6307\u5357</aupLink>\u3002<learnMoreLink>\u4e86\u89e3\u66f4\u591a</learnMoreLink>"'),
+    ('Claude will keep these in mind across chats and Cowork within <aupLink>Anthropic\'s guidelines</aupLink>. <learnMoreLink>Learn more</learnMoreLink>', 'Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa<aupLink>Anthropic \u7684\u6307\u5357</aupLink>\u3002<learnMoreLink>\u4e86\u89e3\u66f4\u591a</learnMoreLink>'),
     ('"Claude will keep these in mind across chats and Cowork within Anthropic\'s guidelines. Learn more"', '"Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa Anthropic \u7684\u6307\u5357\u3002\u4e86\u89e3\u66f4\u591a"'),
     ('Claude will keep these in mind across chats and Cowork within Anthropic\'s guidelines. Learn more', 'Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa Anthropic \u7684\u6307\u5357\u3002\u4e86\u89e3\u66f4\u591a'),
     ('"Claude will keep these in mind across chats and Cowork within Anthropic\u2019s guidelines. Learn more"', '"Claude \u4f1a\u5728\u804a\u5929\u548c Cowork \u4e2d\u8bb0\u4f4f\u8fd9\u4e9b\u5185\u5bb9\uff0c\u5e76\u9075\u5faa Anthropic \u7684\u6307\u5357\u3002\u4e86\u89e3\u66f4\u591a"'),

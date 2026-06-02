@@ -35,6 +35,14 @@ DESKTOP_EN_US_FALLBACK_KEYS = {
 }
 
 
+HARDCODED_UI_FALLBACKS = {
+    '"Enable Main Process Debugger"': '"启用主进程调试器"',
+    '"Record Performance Trace"': '"记录性能跟踪"',
+    '"Write Main Process Heap Snapshot"': '"写入主进程堆快照"',
+    '"Record Memory Trace (auto-stop)"': '"记录内存跟踪（自动停止）"',
+}
+
+
 def find_claude_package() -> Path | None:
     """Auto-detect Claude package under WindowsApps."""
     base = Path(r"C:\Program Files\WindowsApps")
@@ -168,6 +176,35 @@ def patch_whitelist(app_resources: Path) -> str | None:
     return None
 
 
+def patch_hardcoded_ui_fallbacks(app_resources: Path) -> int:
+    """Patch visible hardcoded UI labels not covered by JSON resources."""
+    assets_dirs = iter_assets_dirs(app_resources)
+    if not assets_dirs:
+        return 0
+
+    changed_files = 0
+    candidates = [path for assets_dir in assets_dirs for path in sorted(assets_dir.glob("*.js"))]
+    for path in candidates:
+        try:
+            text = path.read_text(encoding="utf-8")
+        except OSError as e:
+            print(f"Warning: cannot read hardcoded UI target at {path}: {e}; skipping")
+            continue
+
+        patched = text
+        for needle, replacement in HARDCODED_UI_FALLBACKS.items():
+            patched = patched.replace(needle, replacement)
+
+        if patched == text:
+            continue
+
+        backup_file(path, app_resources)
+        if write_text_best_effort(path, patched, context="hardcoded UI fallback patch"):
+            changed_files += 1
+
+    return changed_files
+
+
 def set_locale() -> bool:
     """Set locale=zh-CN in user config."""
     if not CONFIG_PATH.exists():
@@ -267,7 +304,10 @@ def main() -> int:
     # Step 3: Patch desktop fallback labels used before zh-CN is loaded
     fallback_labels = patch_desktop_en_us_fallback(app_resources)
 
-    # Step 4: Set locale
+    # Step 4: Patch hardcoded visible labels not represented in JSON i18n.
+    hardcoded_labels = patch_hardcoded_ui_fallbacks(app_resources)
+
+    # Step 5: Set locale
     locale_set = set_locale()
 
     print("Done")
@@ -275,6 +315,7 @@ def main() -> int:
     print(f"Copied json resources: {copied}")
     print(f"Whitelist patched: {wl_file or 'skipped'}")
     print(f"Desktop en-US fallback labels patched: {fallback_labels}")
+    print(f"Hardcoded UI fallback files patched: {hardcoded_labels}")
     print(f"Locale set: {locale_set}")
     print(f"Backup root: {BACKUP_ROOT}")
     return 0

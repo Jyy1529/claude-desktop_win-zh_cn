@@ -258,20 +258,45 @@ function Invoke-Install {
   }
 
   Write-Host ''
-  Write-Info '正在执行 chunk 界面标签和字体自定义 patch...'
+  Write-Info '正在执行 chunk 界面标签、字体和会话增强 patch...'
   Write-Host ''
   & $python.Source "$scriptDir\patch_chunks_zh_cn.py" --app-dir "$appDir"
+
+  Write-Host ''
+  Write-Info '正在尝试通过 CDP 追加注入会话增强（失败不影响已写入的 chunk 补丁）...'
+  Invoke-SessionDeleteCdp
 
   Write-Host ''
   Write-OK '安装完成！'
   Write-Host ''
   Write-Info '下一步：'
-  Write-Info '  1. 打开 Claude Desktop'
-  Write-Info '  2. 界面应该已经是中文'
-  Write-Info '  3. 可在设置 / 外观区域使用中文字体设置'
+  Write-Info '  1. 界面应该已经是中文'
+  Write-Info '  2. 左侧会话列表悬停时应显示移动、导出、删除按钮'
+  Write-Info '  3. 右侧会显示对话 Timeline，底部可切换居中宽度'
+  Write-Info '  4. 可在设置 / 外观区域使用中文字体设置'
   Write-Info ''
   Write-Warn '注意: 部分第三方推理配置页面文案来自 JS chunk，已尽量汉化，仍可能有少量英文残留'
   Write-Warn '注意: Claude 更新版本后需要重新运行此脚本'
+}
+
+# ── CDP 注入会话删除按钮 ───────────────────────────────────
+function Invoke-SessionDeleteCdp {
+  Write-Title '注入会话删除按钮（CDP）'
+  Write-Host ''
+  Write-Info '脚本会通过 DevTools/CDP 临时注入会话增强；稳定安装路径已写入 WindowsApps 入口 chunk。'
+  Write-Host ''
+
+  $launcher = Join-Path $scriptDir 'claude-cdp-session-delete.ps1'
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $launcher -AppDir "$appDir"
+
+  if ($LASTEXITCODE -ne 0) {
+    Write-Host ''
+    Write-Warn 'CDP 注入失败。已安装的 chunk 会话增强仍然有效，请关闭 Claude 后从开始菜单重新打开。'
+    return
+  }
+
+  Write-Host ''
+  Write-OK 'CDP 注入完成。'
 }
 
 # ── 卸载 ──────────────────────────────────────────────────
@@ -347,6 +372,8 @@ function Invoke-Uninstall {
 
   Write-Host ''
   Write-OK '卸载完成！'
+  Write-Host ''
+  Write-Info '运行时注入已随 Claude 关闭失效'
   Write-Host ''
   Write-Info '下一步：'
   Write-Info '  1. 打开 Claude Desktop'
