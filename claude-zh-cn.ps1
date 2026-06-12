@@ -58,28 +58,96 @@ function Resolve-ClaudeAppPath {
     return $null
   }
 
-  $app = $resolved.TrimEnd('\\/')
-  $res = Join-Path $app 'resources'
-  $desktop = Join-Path $res 'en-US.json'
-  if ((Test-Path $app) -and (Test-Path $desktop)) {
-    return @{ AppDir = $app; ResourcesDir = $res; PackageName = ('manual:' + $app) }
+  $candidate = $resolved.TrimEnd('\/')
+  $possibleApps = @($candidate, (Join-Path $candidate 'app'))
+  if ((Split-Path -Leaf $candidate) -ieq 'resources') {
+    $possibleApps += (Split-Path -Parent $candidate)
+  }
+
+  foreach ($appCandidate in $possibleApps) {
+    if ([string]::IsNullOrWhiteSpace($appCandidate)) { continue }
+    $app = $appCandidate.TrimEnd('\/')
+    $res = Join-Path $app 'resources'
+    if ((Split-Path -Leaf $app) -ieq 'resources') {
+      $res = $app
+      $app = Split-Path -Parent $res
+    }
+
+    $desktop = Join-Path $res 'en-US.json'
+    $frontend = Join-Path $res 'ion-dist\i18n\en-US.json'
+    if ((Test-Path $app) -and (Test-Path $res) -and ((Test-Path $desktop) -or (Test-Path $frontend))) {
+      return @{ AppDir = $app; ResourcesDir = $res; PackageName = ('manual:' + $app) }
+    }
   }
 
   return $null
 }
 
+function Get-ClaudeVersionText {
+  param([string]$PackageName, [string]$AppDir)
+
+  $text = "$PackageName $AppDir"
+  $m = [regex]::Match($text, 'Claude[_\s-]+([0-9]+(?:\.[0-9]+){1,4})', 'IgnoreCase')
+  if ($m.Success) { return $m.Groups[1].Value }
+  return 'unknown'
+}
+
+function New-ClaudePackageInfo {
+  param([string]$AppPath, [string]$PackageName)
+
+  $resolved = Resolve-ClaudeAppPath $AppPath
+  if (-not $resolved) { return $null }
+  if (-not [string]::IsNullOrWhiteSpace($PackageName)) {
+    $resolved.PackageName = $PackageName
+  }
+  $resolved.Version = Get-ClaudeVersionText $resolved.PackageName $resolved.AppDir
+  return $resolved
+}
+
 function Find-ClaudePackage {
+  $candidates = @()
   $base = 'C:\Program Files\WindowsApps'
-  $dirs = Get-ChildItem $base -Directory -Filter 'Claude_*_x64__*' -ErrorAction SilentlyContinue |
-          Sort-Object Name -Descending
-  foreach ($d in $dirs) {
-    $app = Join-Path $d.FullName 'app'
-    $res = Join-Path $app 'resources'
-    if (Test-Path (Join-Path $res 'en-US.json')) {
-      return @{ AppDir = $app; ResourcesDir = $res; PackageName = $d.Name }
+  if (Test-Path $base) {
+    $dirs = Get-ChildItem $base -Directory -Filter 'Claude_*__*' -ErrorAction SilentlyContinue |
+            Sort-Object Name -Descending
+    foreach ($d in $dirs) {
+      $candidates += @{ Path = (Join-Path $d.FullName 'app'); Name = $d.Name }
     }
   }
-  return $null
+
+  $commonPaths = @(
+    (Join-Path $env:LOCALAPPDATA 'Programs\Claude'),
+    (Join-Path $env:LOCALAPPDATA 'Programs\Claude Desktop'),
+    (Join-Path $env:LOCALAPPDATA 'Claude\app'),
+    (Join-Path $env:LOCALAPPDATA 'AnthropicClaude\app'),
+    (Join-Path $env:LOCALAPPDATA 'Anthropic\Claude'),
+    (Join-Path $env:APPDATA 'Claude\app'),
+    (Join-Path $env:ProgramFiles 'Claude'),
+    (Join-Path $env:ProgramFiles 'Claude Desktop')
+  )
+  if (${env:ProgramFiles(x86)}) {
+    $commonPaths += (Join-Path ${env:ProgramFiles(x86)} 'Claude')
+  }
+
+  foreach ($path in $commonPaths) {
+    if (-not [string]::IsNullOrWhiteSpace($path)) {
+      $candidates += @{ Path = $path; Name = ('auto:' + $path) }
+    }
+  }
+
+  $resolved = @()
+  foreach ($candidate in $candidates) {
+    $pkg = New-ClaudePackageInfo $candidate.Path $candidate.Name
+    if ($pkg) { $resolved += $pkg }
+  }
+
+  $unique = @{}
+  foreach ($pkg in $resolved) {
+    $unique[$pkg.AppDir.ToLowerInvariant()] = $pkg
+  }
+  if ($unique.Count -eq 0) { return $null }
+
+  return ($unique.Values | Sort-Object @{Expression='Version';Descending=$true}, @{Expression='AppDir';Descending=$true} | Select-Object -First 1)
 }
 
 function Resolve-ClaudePackage {
@@ -87,22 +155,33 @@ function Resolve-ClaudePackage {
   if ($detected) { return $detected }
 
   Write-Host ''
-  Write-Warn '未检测到 WindowsApps 安装。'
-  Write-Info '如果你使用的是解压后直接运行的 Claude，请手动输入 Claude app 目录。'
+  Write-Warn '未检测到常见 Claude 安装。'
+  Write-Info '如果你使用的是解压版或非默认安装，请手动输入 Claude app 目录或 resources 目录。'
   Write-Info '示例: D:\Claude\app'
   Write-Host ''
 
   while ($true) {
-    $inputPath = Read-Host '  请输入 Claude app 目录（留空则退出）'
+    $inputPath = Read-Host '  请输入 Claude app 目录或 resources 目录（留空则退出）'
     if ([string]::IsNullOrWhiteSpace($inputPath)) {
       return $null
     }
 
-    $manual = Resolve-ClaudeAppPath $inputPath
+    $manual = New-ClaudePackageInfo $inputPath ('manual:' + $inputPath)
     if ($manual) { return $manual }
 
-    Write-Warn '该目录下未找到 app\resources\en-US.json，请确认输入的是 Claude 的 app 目录。'
+    Write-Warn '该目录下未找到 resources\en-US.json 或 resources\ion-dist\i18n\en-US.json，请确认路径。'
   }
+}
+
+function Get-BackupKey {
+  param([string]$ResourcesDir)
+
+  $version = Get-ClaudeVersionText $script:pkgName $script:appDir
+  $bytes = [System.Text.Encoding]::UTF8.GetBytes($ResourcesDir.ToLowerInvariant())
+  $sha1 = [System.Security.Cryptography.SHA1]::Create()
+  $hashBytes = $sha1.ComputeHash($bytes)
+  $hash = -join ($hashBytes | ForEach-Object { $_.ToString('x2') })
+  return "$version-$($hash.Substring(0,10))"
 }
 
 function Get-AssetsVersionDirs {
@@ -121,28 +200,30 @@ function Get-AssetsVersionDirs {
 
 function Set-ClaudePackageManual {
   Write-Host ''
-  Write-Info '手动指定 Claude app 目录'
+  Write-Info '手动指定 Claude app/resources 目录'
   Write-Info '示例: D:\Claude\app'
   Write-Host ''
 
   while ($true) {
-    $inputPath = Read-Host '  请输入 Claude app 目录（留空则取消）'
+    $inputPath = Read-Host '  请输入 Claude app 目录或 resources 目录（留空则取消）'
     if ([string]::IsNullOrWhiteSpace($inputPath)) {
       Write-Info '已取消。'
       return $false
     }
 
-    $manual = Resolve-ClaudeAppPath $inputPath
+    $manual = New-ClaudePackageInfo $inputPath ('manual:' + $inputPath)
     if ($manual) {
       $script:pkg = $manual
       $script:appDir = $manual.AppDir
       $script:resDir = $manual.ResourcesDir
       $script:pkgName = $manual.PackageName
+      $script:backupKey = Get-BackupKey $script:resDir
+      $script:backupRoot = Join-Path $env:LOCALAPPDATA ("Claude-zh-CN-official-backup\json-only\{0}" -f $script:backupKey)
       Write-OK "已切换到手动路径: $appDir"
       return $true
     }
 
-    Write-Warn '该目录下未找到 app\resources\en-US.json，请确认输入的是 Claude 的 app 目录。'
+    Write-Warn '该目录下未找到 resources\en-US.json 或 resources\ion-dist\i18n\en-US.json，请确认路径。'
   }
 }
 
@@ -159,7 +240,8 @@ if (-not $pkg) {
 $appDir      = $pkg.AppDir
 $resDir      = $pkg.ResourcesDir
 $pkgName     = $pkg.PackageName
-$backupRoot  = Join-Path $env:LOCALAPPDATA 'Claude-zh-CN-official-backup\json-only'
+$backupKey   = Get-BackupKey $resDir
+$backupRoot  = Join-Path $env:LOCALAPPDATA ("Claude-zh-CN-official-backup\json-only\{0}" -f $backupKey)
 $configPath  = Join-Path $env:APPDATA 'Claude-3p\config.json'
 
 # ── 状态检测 ──────────────────────────────────────────────
@@ -167,15 +249,19 @@ function Get-PatchStatus {
   $zhDesktop  = Join-Path $resDir 'zh-CN.json'
   $zhFrontend = Join-Path $resDir 'ion-dist\i18n\zh-CN.json'
   $zhStatsig  = Join-Path $resDir 'ion-dist\i18n\statsig\zh-CN.json'
+  $enDynamic  = Join-Path $resDir 'ion-dist\i18n\dynamic\en-US.json'
+  $zhDynamic  = Join-Path $resDir 'ion-dist\i18n\dynamic\zh-CN.json'
 
-  $hasZhFiles = (Test-Path $zhDesktop) -and (Test-Path $zhFrontend) -and (Test-Path $zhStatsig)
+  $needsDynamic = Test-Path $enDynamic
+  $hasDynamic = (-not $needsDynamic) -or (Test-Path $zhDynamic)
+  $hasZhFiles = (Test-Path $zhDesktop) -and (Test-Path $zhFrontend) -and (Test-Path $zhStatsig) -and $hasDynamic
 
-  # 检查白名单
-  $hasWhitelist = $false
-  $indexFiles = Get-ChildItem (Join-Path $resDir 'ion-dist\assets') -Recurse -File -Filter 'index-*.js' -ErrorAction SilentlyContinue
-  foreach ($f in $indexFiles) {
+  # 检查新版 bundle 的 locale 支持
+  $hasLocaleSupport = $false
+  $assetFiles = Get-ChildItem (Join-Path $resDir 'ion-dist\assets') -Recurse -File -Filter '*.js' -ErrorAction SilentlyContinue
+  foreach ($f in $assetFiles) {
     $content = [System.IO.File]::ReadAllText($f.FullName)
-    if ($content.Contains('"zh-CN"')) { $hasWhitelist = $true; break }
+    if ($content.Contains('"zh-CN"')) { $hasLocaleSupport = $true; break }
   }
 
   # 检查 locale
@@ -189,9 +275,9 @@ function Get-PatchStatus {
 
   # 检查备份
   $hasBackup = (Test-Path $backupRoot) -and ((Get-ChildItem $backupRoot -Recurse -File -ErrorAction SilentlyContinue | Measure-Object).Count -gt 0)
-  $hasArtifacts = $hasZhFiles -or $hasWhitelist -or $hasLocale
+  $hasArtifacts = $hasZhFiles -or $hasLocaleSupport -or $hasLocale
 
-  $state = if ($hasZhFiles -and $hasWhitelist) {
+  $state = if ($hasZhFiles -and $hasLocaleSupport) {
     if ($hasLocale) { 'Installed' } else { 'InstalledNoLocale' }
   } elseif ($hasArtifacts) {
     'Partial'
@@ -203,12 +289,12 @@ function Get-PatchStatus {
 
   return @{
     ZhFiles    = $hasZhFiles
-    Whitelist  = $hasWhitelist
+    LocaleSupport = $hasLocaleSupport
     Locale     = $hasLocale
     Backup     = $hasBackup
     HasArtifacts = $hasArtifacts
     State      = $state
-    Installed  = $hasZhFiles -and $hasWhitelist
+    Installed  = $hasZhFiles -and $hasLocaleSupport
   }
 }
 
@@ -218,11 +304,14 @@ function Show-Status {
 
   Write-Title '当前状态'
   Write-Info  "Claude 来源: $pkgName"
+  Write-Info  "Claude 版本: $($pkg.Version)"
   Write-Info  "安装路径:  $appDir"
+  Write-Info  "资源路径:  $resDir"
+  Write-Info  "备份标识:  $backupKey"
   Write-Host ''
 
   if ($s.ZhFiles)   { Write-OK   '中文资源文件已写入' }   else { Write-Info '中文资源文件未写入' }
-  if ($s.Whitelist)  { Write-OK   '语言白名单已包含 zh-CN' } else { Write-Info '语言白名单未包含 zh-CN' }
+  if ($s.LocaleSupport)  { Write-OK   'bundle locale 支持已包含 zh-CN' } else { Write-Info 'bundle locale 支持未包含 zh-CN' }
   if ($s.Locale)     { Write-OK   'locale 已设为 zh-CN' }   else { Write-Info 'locale 未设置' }
   if ($s.Backup)     { Write-OK   '备份存在' }             else { Write-Info '无备份' }
 
@@ -316,7 +405,7 @@ function Invoke-Uninstall {
       return
     }
 
-    # 手动删除 zh-CN 文件 + 尝试清除白名单中的 zh-CN
+    # 手动删除 zh-CN 文件 + 尝试清除 bundle locale 支持中的 zh-CN
     Write-Info '正在关闭 Claude 进程...'
     Get-Process -Name claude -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
     Start-Sleep -Seconds 2
@@ -324,20 +413,21 @@ function Invoke-Uninstall {
     $targets = @(
       (Join-Path $resDir 'zh-CN.json'),
       (Join-Path $resDir 'ion-dist\i18n\zh-CN.json'),
+      (Join-Path $resDir 'ion-dist\i18n\dynamic\zh-CN.json'),
       (Join-Path $resDir 'ion-dist\i18n\statsig\zh-CN.json')
     )
     foreach ($t in $targets) {
       if (Test-Path $t) { Remove-Item $t -Force; Write-Info "  已删除: $t" }
     }
 
-    # 尝试从白名单中移除 zh-CN
-    $indexFiles = Get-ChildItem (Join-Path $resDir 'ion-dist\assets') -Recurse -File -Filter 'index-*.js' -ErrorAction SilentlyContinue
-    foreach ($f in $indexFiles) {
+    # 尝试从 bundle locale 支持中移除 zh-CN
+    $assetFiles = Get-ChildItem (Join-Path $resDir 'ion-dist\assets') -Recurse -File -Filter '*.js' -ErrorAction SilentlyContinue
+    foreach ($f in $assetFiles) {
       $content = [System.IO.File]::ReadAllText($f.FullName)
       if ($content.Contains(',"zh-CN"')) {
         $content = $content.Replace(',"zh-CN"', '')
         [System.IO.File]::WriteAllText($f.FullName, $content)
-        Write-Info "  已从白名单移除 zh-CN: $($f.Name)"
+        Write-Info "  已从 locale 支持中移除 zh-CN: $($f.Name)"
       }
     }
   } else {

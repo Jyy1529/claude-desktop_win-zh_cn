@@ -12,11 +12,18 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import shutil
 import stat
 from pathlib import Path
 
 import patch_chunks_zh_cn
+from claude_app_discovery import (
+    app_backup_key,
+    find_claude_package,
+    resources_dir_for_app,
+    resolve_app_dir,
+)
 
 
 BACKUP_BASE = Path(os.environ["LOCALAPPDATA"]) / "Claude-zh-CN-official-backup"
@@ -24,17 +31,6 @@ BACKUP_JSON_ONLY = BACKUP_BASE / "json-only"
 CONFIG_PATH = Path(os.environ["APPDATA"]) / "Claude-3p" / "config.json"
 FONT_KEY = "claudeZhCnFont"
 SKIP_RESTORE_NAMES = {"app.asar"}
-
-
-def find_claude_package() -> Path | None:
-    """Auto-detect Claude package under WindowsApps."""
-    base = Path(r"C:\Program Files\WindowsApps")
-    if not base.exists():
-        return None
-    candidates = sorted(base.glob("Claude_*_x64__*/app/resources/en-US.json"), reverse=True)
-    if candidates:
-        return candidates[0].parent.parent  # .../app
-    return None
 
 
 def iter_assets_dirs(app_resources: Path) -> list[Path]:
@@ -118,6 +114,7 @@ def remove_zh_cn_artifacts(app_resources: Path) -> tuple[int, int]:
     targets = [
         app_resources / "zh-CN.json",
         app_resources / "ion-dist" / "i18n" / "zh-CN.json",
+        app_resources / "ion-dist" / "i18n" / "dynamic" / "zh-CN.json",
         app_resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json",
     ]
     for path in targets:
@@ -130,24 +127,67 @@ def remove_zh_cn_artifacts(app_resources: Path) -> tuple[int, int]:
             print(f"Warning: cannot delete {path}: {e}; skipping")
 
     for assets_dir in iter_assets_dirs(app_resources):
-        for path in sorted(assets_dir.glob("index-*.js")):
+        for path in sorted(assets_dir.glob("*.js")):
             try:
                 content = path.read_text(encoding="utf-8")
             except OSError as e:
                 print(f"Warning: cannot read {path}: {e}; skipping")
                 continue
 
-            if ',"zh-CN"' not in content:
+            patched = scrub_spa_locale_bootstrap(content)
+            patched = patched.replace(',"zh-CN"', '')
+
+            if patched == content:
                 continue
 
             if write_text_best_effort(
                 path,
-                content.replace(',"zh-CN"', ''),
+                patched,
                 context="remove zh-CN whitelist",
             ):
                 scrubbed += 1
 
     return deleted, scrubbed
+
+
+def scrub_spa_locale_bootstrap(content: str) -> str:
+    """Best-effort removal for recent bundle locale bootstrap patches."""
+    content = re_sub_literal_spa_bootstrap(content)
+    return re_sub_literal_bootstrap_locale(content)
+
+
+def re_sub_literal_spa_bootstrap(content: str) -> str:
+    pattern = re.compile(
+        r'const (?P<storage>[A-Za-z_$][\w$]*)="spa:locale",'
+        r'(?P<locale>[A-Za-z_$][\w$]*)=NS\(\["zh-CN",\(\(\)=>\{try\{return localStorage\.getItem\((?P=storage)\)\}'
+        r'catch\{return null\}\}\)\(\),\.\.\.navigator\.languages\]\);'
+        r'try\{localStorage\.setItem\((?P=storage),(?P=locale)\)\}catch\{\}'
+    )
+
+    def replace(match: re.Match[str]) -> str:
+        storage = match.group("storage")
+        locale = match.group("locale")
+        return (
+            f'const {storage}="spa:locale",{locale}=NS([(()=>{{try{{return '
+            f'localStorage.getItem({storage})}}catch{{return null}}}})(),...navigator.languages]);'
+        )
+
+    return pattern.sub(replace, content)
+
+
+def re_sub_literal_bootstrap_locale(content: str) -> str:
+    pattern = re.compile(
+        r'const (?P<locale>[A-Za-z_$][\w$]*)=NS\(\["zh-CN",(?P<source>[A-Za-z_$][\w$]*)\.locale\]\);'
+        r'try\{localStorage\.setItem\((?P<storage>[A-Za-z_$][\w$]*),(?P=locale)\)\}catch\{\}'
+    )
+
+    def replace(match: re.Match[str]) -> str:
+        locale = match.group("locale")
+        source = match.group("source")
+        storage = match.group("storage")
+        return f'const {locale}=NS([{source}.locale]);try{{localStorage.setItem({storage},{locale})}}catch{{}}'
+
+    return pattern.sub(replace, content)
 
 
 def revert_chunk_translations(app_resources: Path) -> int:
@@ -233,6 +273,33 @@ def cleanup_known_chunk_residue_tokens(app_resources: Path) -> int:
     return changed_files
 
 
+def remove_chunk_injections(app_resources: Path) -> int:
+    """Remove marked runtime injection blocks when no matching backup exists."""
+    marker_pairs = [
+        ("// __CLAUDE_ZH_CN_FONT_PATCH_BEGIN__", "// __CLAUDE_ZH_CN_FONT_PATCH_END__"),
+        ("// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_BEGIN__", "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_END__"),
+    ]
+    changed_files = 0
+    for assets_dir in iter_assets_dirs(app_resources):
+        for path in sorted(assets_dir.glob("*.js")):
+            try:
+                content = path.read_text(encoding="utf-8")
+            except OSError as e:
+                print(f"Warning: cannot read {path}: {e}; skipping")
+                continue
+
+            patched = content
+            for begin, end in marker_pairs:
+                while begin in patched and end in patched:
+                    start = patched.index(begin)
+                    finish = patched.index(end, start) + len(end)
+                    patched = patched[:start].rstrip() + "\n" + patched[finish:].lstrip()
+
+            if patched != content and write_text_best_effort(path, patched, context="remove runtime injections"):
+                changed_files += 1
+    return changed_files
+
+
 def remove_locale() -> bool:
     """Remove locale=zh-CN and zh-CN font mirror from user config."""
     if not CONFIG_PATH.exists():
@@ -261,6 +328,33 @@ def remove_locale() -> bool:
     )
 
 
+def exact_backup_root(base: Path, app_resources: Path) -> Path | None:
+    """Return the current install's versioned backup root, if present."""
+    root = base / app_backup_key(app_resources)
+    if root.exists() and any(path.is_file() for path in root.rglob("*")):
+        return root
+    return None
+
+
+def legacy_backup_root(base: Path) -> Path | None:
+    """Return a legacy unversioned backup root for explicit fallback use."""
+    if base.exists() and any(path.is_file() for path in base.rglob("*")):
+        return base
+    return None
+
+
+def restore_chunk_backup(root: Path, app_resources: Path) -> int:
+    """Restore chunk backups saved either relative to resources or legacy assets."""
+    has_resource_relative = any((root / rel).exists() for rel in ("ion-dist", "resources"))
+    if has_resource_relative or any(str(path.relative_to(root)).startswith("ion-dist") for path in root.rglob("*") if path.is_file()):
+        return restore_from(root, app_resources)
+
+    assets_dirs = iter_assets_dirs(app_resources)
+    if not assets_dirs:
+        return 0
+    return restore_from(root, assets_dirs[0])
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Restore Claude Desktop from backup")
     parser.add_argument("--app-dir", type=str, default=None,
@@ -268,46 +362,42 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.app_dir:
-        app_dir = Path(args.app_dir)
+        app_dir = resolve_app_dir(args.app_dir)
     else:
         app_dir = find_claude_package()
 
     if not app_dir or not app_dir.exists():
         raise SystemExit("Claude app directory not found. Use --app-dir to specify manually.")
 
-    app_resources = app_dir / "resources"
+    app_resources = resources_dir_for_app(app_dir)
 
-    # Also check for full-patch backups (legacy)
-    backup_full = None
-    for d in sorted(BACKUP_BASE.glob("Claude_*"), reverse=True):
-        if d.is_dir() and any(d.rglob("*")):
-            backup_full = d
-            break
-
-    # Check for chunk backups
     backup_chunks = BACKUP_BASE / "chunks"
-
-    candidates = []
-    if BACKUP_JSON_ONLY.exists() and any(BACKUP_JSON_ONLY.rglob("*")):
-        candidates.append(("json-only", BACKUP_JSON_ONLY, app_resources))
-    if backup_chunks.exists() and any(backup_chunks.rglob("*")):
-        assets_dir = app_resources / "ion-dist" / "assets" / "v1"
-        candidates.append(("chunks", backup_chunks, assets_dir))
-    if backup_full and not candidates:
-        candidates.append(("full-patch", backup_full, app_resources))
-
-    if not candidates:
-        raise SystemExit(f"No backup found under {BACKUP_BASE}")
+    key = app_backup_key(app_resources)
+    json_backup = exact_backup_root(BACKUP_JSON_ONLY, app_resources)
+    chunks_backup = exact_backup_root(backup_chunks, app_resources)
+    legacy_json = legacy_backup_root(BACKUP_JSON_ONLY) if not json_backup else None
+    legacy_chunks = legacy_backup_root(backup_chunks) if not chunks_backup else None
 
     total_restored = 0
-    for label, root, target in candidates:
-        count = restore_from(root, target)
+    if json_backup:
+        count = restore_from(json_backup, app_resources)
         total_restored += count
-        print(f"  Restored from {label}: {root} ({count} files)")
+        print(f"  Restored from json-only:{key}: {json_backup} ({count} files)")
+    if chunks_backup:
+        count = restore_chunk_backup(chunks_backup, app_resources)
+        total_restored += count
+        print(f"  Restored from chunks:{key}: {chunks_backup} ({count} files)")
+    if not json_backup and legacy_json:
+        print(f"  Skipped legacy json-only backup without matching key: {legacy_json}")
+    if not chunks_backup and legacy_chunks:
+        print(f"  Skipped legacy chunks backup without matching key: {legacy_chunks}")
+    if not json_backup and not chunks_backup:
+        print(f"  No matching versioned backup for key: {key}; cleanup-only restore")
 
     deleted, scrubbed = remove_zh_cn_artifacts(app_resources)
     reverted = revert_chunk_translations(app_resources)
     cleaned = cleanup_known_chunk_residue_tokens(app_resources)
+    injections_removed = remove_chunk_injections(app_resources)
 
     # Remove locale
     locale_removed = remove_locale()
@@ -319,6 +409,7 @@ def main() -> int:
     print(f"Whitelist bundles scrubbed: {scrubbed}")
     print(f"Chunk files reverted: {reverted}")
     print(f"Chunk residue cleanup: {cleaned}")
+    print(f"Runtime injection blocks removed: {injections_removed}")
     print(f"Locale removed: {locale_removed}")
     return 0
 
