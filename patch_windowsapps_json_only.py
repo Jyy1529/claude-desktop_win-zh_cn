@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Patch only JSON i18n resources in the official WindowsApps package.
+"""Patch only JSON i18n resources in the official Claude Desktop package.
 
 Accepts --app-dir to specify the Claude app directory dynamically.
-If not provided, auto-detects from C:\\Program Files\\WindowsApps.
+If not provided, auto-detects WindowsApps and AppData\\Local\\AnthropicClaude installs.
 
 Steps:
 1. Backup original files
@@ -18,6 +18,7 @@ import os
 import re
 import shutil
 import stat
+import subprocess
 from pathlib import Path
 
 
@@ -43,15 +44,94 @@ HARDCODED_UI_FALLBACKS = {
 }
 
 
+OFFICIAL_LANGUAGE_LOCALES = {
+    "en-US",
+    "de-DE",
+    "fr-FR",
+    "ko-KR",
+    "ja-JP",
+    "es-419",
+    "es-ES",
+    "it-IT",
+    "hi-IN",
+    "pt-BR",
+    "id-ID",
+}
+
+LOCALE_ARRAY_RE = re.compile(
+    r'\[\s*"[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,4})*"'
+    r'(?:\s*,\s*"[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,4})*")+\s*\]'
+)
+
+
 def find_claude_package() -> Path | None:
-    """Auto-detect Claude package under WindowsApps."""
-    base = Path(r"C:\Program Files\WindowsApps")
-    if not base.exists():
+    """Auto-detect Claude app directory from supported Windows install layouts."""
+    appx = find_appx_claude_package()
+    if appx:
+        return appx
+
+    windows_candidates: list[Path] = []
+    windowsapps = Path(r"C:\Program Files\WindowsApps")
+    if windowsapps.exists():
+        windows_candidates.extend(
+            path.parent.parent
+            for path in windowsapps.glob("Claude_*_x64__*/app/resources/en-US.json")
+            if path.is_file()
+        )
+    if windows_candidates:
+        return sorted(set(windows_candidates), key=lambda path: (windowsapps_version_key(path), str(path)), reverse=True)[0]
+
+    local_candidates: list[Path] = []
+    localappdata = os.environ.get("LOCALAPPDATA")
+    if localappdata:
+        anthropic = Path(localappdata) / "AnthropicClaude"
+        if anthropic.exists():
+            local_resource_files = [
+                anthropic / "resources" / "en-US.json",
+                anthropic / "app" / "resources" / "en-US.json",
+                *anthropic.glob("app*/resources/en-US.json"),
+            ]
+            local_candidates.extend(path.parent.parent for path in local_resource_files if path.is_file())
+
+    if not local_candidates:
         return None
-    candidates = sorted(base.glob("Claude_*_x64__*/app/resources/en-US.json"), reverse=True)
-    if candidates:
-        return candidates[0].parent.parent  # .../app
+    return sorted(set(local_candidates), key=lambda path: (path.stat().st_mtime if path.exists() else 0, str(path)), reverse=True)[0]
+
+
+def find_appx_claude_package() -> Path | None:
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "$p=Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Sort-Object Version -Descending | Select-Object -First 1; if ($p) { Join-Path $p.InstallLocation 'app' }",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=6,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    for line in result.stdout.splitlines():
+        app_dir = Path(line.strip())
+        if (app_dir / "resources" / "en-US.json").is_file():
+            return app_dir
     return None
+
+
+def windowsapps_version_key(app_dir: Path) -> tuple[int, ...]:
+    parts = app_dir.parent.name.split("_")
+    if len(parts) < 2:
+        return ()
+    version: list[int] = []
+    for part in parts[1].split("."):
+        try:
+            version.append(int(part))
+        except ValueError:
+            version.append(0)
+    return tuple(version)
 
 
 def find_assets_dir(app_resources: Path) -> Path | None:
@@ -135,6 +215,45 @@ def write_text_best_effort(path: Path, text: str, *, context: str) -> bool:
         return False
 
 
+def should_patch_locale_array(locales: list[str], *, legacy_index_list: bool) -> bool:
+    if not locales or locales[0] != "en-US":
+        return False
+    if "zh-CN" in locales:
+        return True
+    if legacy_index_list:
+        return len(locales) >= 2
+
+    hits = OFFICIAL_LANGUAGE_LOCALES.intersection(locales)
+    return len(hits) >= 6 and {"de-DE", "fr-FR", "ja-JP", "ko-KR"}.issubset(hits)
+
+
+def patch_locale_arrays(text: str, *, legacy_index_list: bool) -> tuple[str, bool, bool]:
+    found = False
+    changed = False
+
+    def replace_array(match: re.Match[str]) -> str:
+        nonlocal found, changed
+        array_text = match.group(0)
+        try:
+            locales = json.loads(array_text)
+        except json.JSONDecodeError:
+            return array_text
+        if not isinstance(locales, list) or not all(isinstance(item, str) for item in locales):
+            return array_text
+        if not should_patch_locale_array(locales, legacy_index_list=legacy_index_list):
+            return array_text
+
+        found = True
+        if "zh-CN" in locales:
+            return array_text
+
+        changed = True
+        insert_at = array_text.rfind("]")
+        return array_text[:insert_at] + ',"zh-CN"' + array_text[insert_at:]
+
+    return LOCALE_ARRAY_RE.sub(replace_array, text), changed, found
+
+
 def patch_whitelist(app_resources: Path) -> str | None:
     """Add zh-CN to every discovered language whitelist. Uses flexible matching."""
     assets_dirs = iter_assets_dirs(app_resources)
@@ -142,32 +261,37 @@ def patch_whitelist(app_resources: Path) -> str | None:
         print("Warning: no index-*.js found; skipping whitelist patch")
         return None
 
-    candidates = [path for assets_dir in assets_dirs for path in sorted(assets_dir.glob("index-*.js"))]
+    candidates: list[Path] = []
+    for assets_dir in assets_dirs:
+        for path in sorted(assets_dir.glob("*.js")):
+            try:
+                text = path.read_text(encoding="utf-8")
+            except OSError as e:
+                print(f"Warning: cannot read whitelist target at {path}: {e}; skipping")
+                continue
+            if path.name.startswith("index-") and '"en-US"' in text:
+                candidates.append(path)
+            elif '"en-US"' in text and '"fr-FR"' in text:
+                candidates.append(path)
+
     if not candidates:
-        print("Warning: no index-*.js found; skipping whitelist patch")
+        print("Warning: no candidate JS bundle found; skipping whitelist patch")
         return None
 
     touched: list[str] = []
     for path in candidates:
         text = path.read_text(encoding="utf-8")
-
-        # Backup before modifying
-        backup_file(path, app_resources)
-
-        if '"zh-CN"' in text:
+        legacy_index_list = path.name.startswith("index-")
+        patched, changed, found = patch_locale_arrays(text, legacy_index_list=legacy_index_list)
+        if not found:
+            continue
+        if not changed:
             touched.append(path.name)
             continue
 
-        # Flexible match: find a JSON array starting with "en-US" that looks like a locale whitelist
-        pattern = re.compile(r'(\["en-US"(?:,"[a-zA-Z]{2,3}(?:-[a-zA-Z0-9]{2,4})*")+)\]')
-        m = pattern.search(text)
-        if m:
-            original_array = m.group(0)  # e.g. ["en-US","de-DE",...]
-            # Insert zh-CN before the closing bracket
-            patched_array = original_array[:-1] + ',"zh-CN"]'
-            text = text.replace(original_array, patched_array, 1)
-            if write_text_best_effort(path, text, context="whitelist patch"):
-                touched.append(path.name)
+        backup_file(path, app_resources)
+        if write_text_best_effort(path, patched, context="whitelist patch"):
+            touched.append(path.name)
 
     if touched:
         return ", ".join(touched)

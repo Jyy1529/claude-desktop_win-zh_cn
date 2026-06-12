@@ -66,6 +66,16 @@ def test_font_runtime_replaces_legacy_injection() -> None:
     assert "document.getElementById(FLOATING_PANEL_ID)?.remove();" in content
     assert "\\bArtifacts\\b" in content
     assert "document.body.innerText ||" not in content
+    assert "scope.textContent ||" in content
+    assert "const TEXT_FIX_INITIAL_LIMIT = 900;" in content
+    assert "const TEXT_FIX_MUTATION_LIMIT = 180;" in content
+    assert "const TEXT_FIX_ROOT_LIMIT = 24;" in content
+    assert "const TEXT_FIX_MIN_INTERVAL_MS = 900;" in content
+    assert "function runTextFixQueue" in content
+    assert "function scheduleFloatingFontButtonVisibility" in content
+    assert "fontProviderSettingsCache" in content
+    assert "root?.textContent ||" in content
+    assert "while (nodes.length < 2000)" not in content
     assert "body *" not in content
     assert "[class], [class] *" not in content
     assert ":not([aria-hidden=\"true\"])" in content
@@ -113,7 +123,7 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_END__" in content
     assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__" in content
     assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_VERSION__" in content
-    assert 'const VERSION = "29"' in content
+    assert 'const VERSION = "40"' in content
     assert "claude-zh-cn-session-delete-button" in content
     assert "claude-zh-cn-session-export-button" in content
     assert "claude-zh-cn-session-move-button" in content
@@ -164,15 +174,21 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "function recentSectionRoots" in content
     assert "rect.height < panelRect.height * 0.5" in content
     assert "function recentsRowContainer" in content
-    assert "if (current.matches?.(\"[data-app-action-sidebar-thread-id],[data-session-id],[data-thread-id],[data-conversation-id],[data-chat-id],a[href],[role='link'],[role='treeitem'],[role='listitem'],li,button,[role='button']\")) break;" in content
+    assert "if (current.matches?.(\"[data-app-action-sidebar-thread-id],[data-session-id],[data-thread-id],[data-conversation-id],[data-chat-id],[role='treeitem'],[role='listitem'],li\")) break;" in content
     assert "function meaningfulRecentsTitle" in content
     assert "function recentsTitleNodes" in content
     assert "function recentsTitleText" in content
     assert "function hasReadableRecentsTitle" in content
     assert "function isInjectedActionText" in content
     assert "function isBlankOrStatusDotRow" in content
+    assert "function looksLikeModeOrToolbarChrome" in content
+    assert "mode-or-toolbar" in content
+    assert "href.match(/(?:chat|conversation|thread|session)(?:\\/|=|:|-)([A-Za-z0-9_.-]+)/i)" in content
+    assert "href.match(/\\/([A-Za-z0-9_-]{8,})(?:[/?#]|$)/)" not in content
     assert "function hasNativeRowControl" in content
     assert "function isLikelyProjectOrGroupRow" in content
+    assert "function looksLikeNewSessionCommand" in content
+    assert "return \"new-session-command\";" in content
     assert "function looksLikeRecentsEntryRow" in content
     assert "Gateway|第三方" in content
     assert "function sessionRowRejectReason" in content
@@ -185,6 +201,17 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "function hasRecentsSectionHint" in content
     assert "function invalidateScanCache" in content
     assert "function scanCache" in content
+    assert "const TEXT_CACHE_LIMIT = 2500;" in content
+    assert "const MAX_RECENTS_CANDIDATE_NODES = 96;" in content
+    assert "const MAX_RECENTS_FALLBACK_VISITS = 160;" in content
+    assert "const SCAN_DELAY_MS = 5200;" in content
+    assert "const SCAN_MIN_INTERVAL_MS = 24000;" in content
+    assert "const TIMELINE_DELAY_MS = 6200;" in content
+    assert "const TIMELINE_MIN_INTERVAL_MS = 30000;" in content
+    assert "const STARTUP_SCAN_DELAY_MS = 4200;" in content
+    assert "const STARTUP_TIMELINE_DELAY_MS = 1800;" in content
+    assert "const MUTATION_RECORD_LIMIT = 24;" in content
+    assert "const MUTATION_NODE_LIMIT = 36;" in content
     assert "document.querySelectorAll(SIDEBAR_CONTAINER_SELECTORS)" in content
     assert "document.querySelectorAll(SESSION_SIGNAL_SELECTORS)" in content
     assert "document.querySelectorAll(\"button,[role='tab'],[role='button'],a,div\")" not in content
@@ -192,8 +219,11 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "signalCount >= 2" in content
     assert "if (!looksLikeRecentsEntryRow(node, text) && !hasSessionSignal(node) && !isCurrentSidebarItem(node)) return;" in content
     assert "current.querySelector?.(SESSION_SIGNAL_SELECTORS)" in content
-    assert "sidebarContainers.forEach((container)" in content
+    assert "const unresolvedContainers = sidebarContainers.filter((container) => !roots.has(container));" in content
+    assert "unresolvedContainers.forEach((container)" in content
     assert "container.querySelectorAll(\"button,[role='tab'],[role='button'],a,div\")" in content
+    assert "if (!/(最近|历史|Recent|History|聊天|Chat|会话|Conversation)/i.test(text)) return;" in content
+    assert "协作|Collaborate|代码|Code|最近|历史" not in content
     assert "container.querySelectorAll(\"a[href],button,[role='button'],[role='link'],[role='treeitem'],[role='listitem'],li,div\")" in content
     assert "function isHistorySectionMarker" in content
     assert "function isNonHistorySectionMarker" in content
@@ -246,7 +276,11 @@ def test_session_delete_runtime_is_injected() -> None:
     candidate_end = content.index("function userQuestionNodes", candidate_start)
     candidate_block = content[candidate_start:candidate_end]
     assert "recentSectionRoots().forEach" in candidate_block
-    assert "RECENTS_ROW_CANDIDATE_SELECTORS" in candidate_block
+    assert "candidateNodesForSection(panel, marker).forEach" in candidate_block
+    assert "RECENTS_ROW_CANDIDATE_SELECTORS" in content
+    assert "function fallbackRecentsTextNodes" in content
+    assert "function candidateNodesForSection" in content
+    assert "function addCandidateNode" in content
     assert "const row = recentsRowContainer(node);" in candidate_block
     assert "const normalized = normalizeRecentsRow(row);" in candidate_block
     assert "const rows = new Map();" in candidate_block
@@ -255,7 +289,22 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "document.querySelectorAll(ROW_SELECTORS)" not in candidate_block
     assert "document.querySelectorAll(SIDEBAR_CONTAINER_SELECTORS)" not in candidate_block
     assert "function attachRow" in content
+    assert "function directActionButtons" in content
+    assert "function removeDirectActionButtons" in content
+    assert "function attachedAncestorActionRow" in content
+    assert "function cleanupNestedActionRows" in content
     assert "function tryNativeDelete" in content
+    assert "function tryLocalSessionDelete" in content
+    assert "function localSessionId" in content
+    assert "__CLAUDE_ZH_CN_LOCAL_SESSION_DELETE_REQUESTS__" in content
+    assert "__CLAUDE_ZH_CN_LOCAL_SESSION_DELETE_BRIDGE__" in content
+    assert "本地删除桥未运行" in content
+    assert "function dispatchContextMenu" in content
+    assert "button: 2, buttons: 2" in content
+    assert "if (clickDeleteMenuItem()) return true;" in content
+    assert "DeleteD" not in content
+    assert "aria-keyshortcuts" in content
+    assert "delete older" in content
     assert "function showUndoToast" in content
     assert "pendingDeleteTimer" in content
     assert "row.dataset.claudeZhCnPendingDelete" in content
@@ -264,23 +313,60 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "function activateExport" in content
     assert "function buildConversationMarkdown" in content
     assert "function messageRoleSignal" in content
-    assert "main [data-testid*='assistant']" in content
-    assert "main [data-testid*='response']" in content
-    assert "main [class*='markdown']" in content
+    assert "function mainRoot" in content
+    assert "[data-testid*='assistant']" in content
+    assert "[data-testid*='response']" in content
+    assert "[data-testid*='human']" in content
+    assert "[data-testid*='prompt']" in content
+    assert "[data-testid*='question']" in content
+    assert "[class*='human-message']" in content
+    assert "[class*='user-message']" in content
+    assert "[class*='markdown']" in content
     assert "function isAssistantContentNode" in content
-    assert "main [class*='font-claude-message']" in content
+    assert "[class*='font-claude-message']" in content
+    assert "const direct = [...mainRoot().querySelectorAll(\"[data-message-author-role='user'],[data-author='user'],[data-testid*='human'],[data-testid*='prompt'],[data-testid*='question'],[class*='human-message'],[class*='user-message'],[class*='prompt-message']\")]" in content
+    assert "if (direct.length) return direct;" in content
     assert "if (!role && lastRole === \"用户\") role = \"Claude\"" in content
     assert "function renderTimeline" in content
     assert "function scheduleTimelineRender" in content
-    assert "setTimeout(renderTimeline, 320)" in content
+    assert "function runTimelineRenderWhenIdle" in content
+    assert "if (timelineTimer) {" in content
+    assert "let timelineTimerDueAt = 0;" in content
+    assert "const hasVisibleTimeline = !!(timeline && timeline.children.length);" in content
+    assert "if (lastTimelineRunAt && hasVisibleTimeline)" in content
+    assert "clearTimeout(timelineTimer);" in content
+    assert "scheduleTimelineRender(900);" in content
+    assert "setTimeout(runTimelineRenderWhenIdle, delay)" in content
+    assert "lastTimelineRunAt" in content
+    assert "lastMainMutationAt" in content
+    assert "function hasQuickConversationContent" in content
+    assert "function hasConversationContent" in content
+    assert "function isConversationPage" in content
+    assert "if (!isConversationPage())" in content
+    assert "timeline.innerHTML = \"\";" not in content
+    assert "timeline.replaceChildren" in content
     assert "function handlePageMutations" in content
+    assert "function handleSidebarPointer" in content
+    assert "document.body?.addEventListener?.(\"pointerover\", handleSidebarPointer, true);" in content
     assert "const MAIN_CONTAINER_SELECTORS = \"main,[role='main']\"" in content
     assert "if (!section.marker) return hasSessionSignal(row);" in content
     assert "Progress" in content
     assert "new MutationObserver(handlePageMutations)" in content
     assert "nodes.some(nodeTouchesSidebar)" in content
     assert "nodes.some(nodeTouchesMain)" in content
+    assert "MUTATION_RECORD_LIMIT" in content
+    assert "MUTATION_NODE_LIMIT" in content
+    assert "function scopedSelectorMatch" in content
+    assert "function mutationElementNodes" in content
+    assert "if (mutation.type === \"attributes\")" in content
+    assert "lastMutationSummary" in content
+    assert "function isInjectedRuntimeNode" in content
+    assert "if (nodes.length && nodes.every(isInjectedRuntimeNode))" in content
+    assert "\"data-app-action-sidebar-thread-id\", \"class\"" not in content
+    assert "attributes: true" not in content
+    assert "attributeFilter:" not in content
     assert "function rememberScrollPosition" in content
+    assert "function scheduleRememberScrollPosition" in content
     assert "function toggleCenteredLayout" in content
     assert "function activateMove" in content
     assert "function showMoveDialog" in content
@@ -293,10 +379,20 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "SIDEBAR_CONTAINER_SELECTORS" in content
     assert "revealRowActions(row)" in content
     assert "__CLAUDE_ZH_CN_SESSION_DELETE_SCAN_STATE__" in content
+    assert "session controls disabled" in content
+    assert "enabled: false" in content
     assert "portalVisible" in content
     assert "scanDurationMs" in content
+    assert "mutationInspectedNodes" in content
     assert "renderTimeline();" not in content
-    assert "setTimeout(scanRows, 180)" in content
+    assert "function runScanWhenIdle" in content
+    assert "if (scanTimer) return;" in content
+    assert "setTimeout(runScanWhenIdle, delay)" in content
+    assert "lastScanRunAt" in content
+    assert "STARTUP_SCAN_DELAY_MS" in content
+    assert "scheduleScan(STARTUP_SCAN_DELAY_MS)" in content
+    assert "scheduleTimelineRender(STARTUP_TIMELINE_DELAY_MS)" in content
+    assert "POINTER_ATTACH_DELAY_MS" in content
     assert "setTimeout(scanRows, 80)" not in content
     assert "}, 4000);" in content
     assert "}, 2000);" not in content
@@ -306,6 +402,7 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "panelCount" in content
     assert "sectionCount" in content
     assert "candidateRowSamples" in content
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_DEBUG__ ? candidateRowSamples(rows) : []" in content
     assert "rejectReason" in content
     assert "tag: row.tagName" in content
     assert "console.log('app');" in content
@@ -342,6 +439,7 @@ def test_session_delete_runtime_recognizes_new_session_rows_in_dom() -> None:
         cwd=ROOT,
         capture_output=True,
         text=True,
+        encoding="utf-8",
         check=False,
     )
 
@@ -350,22 +448,28 @@ def test_session_delete_runtime_recognizes_new_session_rows_in_dom() -> None:
     expected_counts = {
         "before": 3,
         "after": 3,
-        "currentNewButtons": 3,
+        "currentNewButtons": 0,
         "longTitleButtons": 3,
         "slashTitleButtons": 3,
+        "nestedParentButtons": 3,
+        "nestedChildButtons": 0,
         "placeholderButtons": 3,
         "projectButtons": 0,
         "filePathTitleButtons": 0,
         "progressButtons": 0,
         "filesButtons": 0,
         "contextButtons": 0,
+        "modeTabButtons": 0,
+        "customNavButtons": 0,
+        "timelineCount": 2,
         "candidateCount": 6,
     }
     for key, value in expected_counts.items():
         assert payload[key] == value
     assert payload["exportHasUser"] is True
     assert payload["exportHasAssistant"] is True
-    assert len(payload["exportRoles"]) == 2
+    assert len(payload["exportRoles"]) == 3
+    assert payload["exportRoles"].count("用户") == 2
     assert payload["exportRoles"][1] == "Claude"
 
 
@@ -465,6 +569,70 @@ def test_cdp_launcher_reads_runtime_health_snapshot() -> None:
     assert "__CLAUDE_ZH_CN_FONT_PATCH__" in expression
     assert "__CLAUDE_ZH_CN_VISIBLE_TEXT_FIX_PATCH__" in expression
     assert client.calls[0][1]["returnByValue"] is True
+
+
+def test_cdp_launcher_quarantines_local_session_files() -> None:
+    launcher = load_module("cdp_local_session_quarantine_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+    session_id = "local_11111111-2222-4333-8444-555555555555"
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp) / "local-agent-mode-sessions"
+        space = root / "account-id" / "space-id"
+        session_dir = space / session_id
+        session_dir.mkdir(parents=True)
+        metadata = space / f"{session_id}.json"
+        metadata.write_text('{"sessionId":"local"}', encoding="utf-8")
+        audit = session_dir / "audit.jsonl"
+        audit.write_text("{}", encoding="utf-8")
+
+        result = launcher.quarantine_local_session(
+            session_id,
+            roots=[root],
+            quarantine_base=Path(tmp) / "quarantine",
+        )
+
+        assert result["ok"] is True
+        assert result["mode"] == "quarantine"
+        assert not metadata.exists()
+        assert not session_dir.exists()
+        moved_paths = {Path(item["to"]).name for item in result["moved"]}
+        assert f"{session_id}.json" in moved_paths
+        assert session_id in moved_paths
+        assert (Path(result["quarantine"]) / "target-1" / f"{session_id}.json").exists()
+        assert (Path(result["quarantine"]) / "target-1" / session_id / "audit.jsonl").exists()
+
+
+def test_cdp_launcher_rejects_non_local_session_delete() -> None:
+    launcher = load_module("cdp_local_session_invalid_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    result = launcher.quarantine_local_session("chat_11111111-2222-4333-8444-555555555555", roots=[])
+
+    assert result["ok"] is False
+    assert "local_<uuid>" in result["error"]
+
+
+def test_cdp_launcher_local_delete_bridge_queue_roundtrip() -> None:
+    launcher = load_module("cdp_local_delete_bridge_test", ROOT / "tools" / "cdp_session_delete_launcher.py")
+
+    class FakeCdpClient:
+        def __init__(self) -> None:
+            self.calls = []
+
+        def call(self, method, params=None):
+            self.calls.append((method, params or {}))
+            if method == "Runtime.evaluate" and "return queue.filter" in (params or {}).get("expression", ""):
+                return {"result": {"value": [{"requestId": "r1", "sessionId": "local_11111111-2222-4333-8444-555555555555"}]}}
+            return {"result": {"value": True}}
+
+    client = FakeCdpClient()
+    launcher.enable_local_delete_bridge(client)
+    requests = launcher.read_local_delete_requests(client)
+    launcher.write_local_delete_result(client, {"requestId": "r1", "ok": False, "error": "x"})
+
+    assert requests[0]["requestId"] == "r1"
+    expressions = [call[1].get("expression", "") for call in client.calls]
+    assert any("__CLAUDE_ZH_CN_LOCAL_SESSION_DELETE_BRIDGE__" in expression for expression in expressions)
+    assert any("__CLAUDE_ZH_CN_LOCAL_SESSION_DELETE_RESULTS__" in expression for expression in expressions)
 
 
 def test_cdp_launcher_reads_recents_row_diagnostics() -> None:
@@ -604,6 +772,7 @@ def test_cdp_launcher_injects_webview2_args_for_direct_exe(capsys) -> None:
 
     with mock.patch.object(launcher, "resolve_app_dir", return_value=ROOT), \
         mock.patch.object(launcher, "close_existing_claude"), \
+        mock.patch.object(launcher, "is_port_open", return_value=False), \
         mock.patch.object(launcher, "activate_claude_appx") as appx_activate, \
         mock.patch.object(launcher, "launch_claude") as direct_launch, \
         mock.patch.object(launcher, "read_debug_port_summary", return_value={"targets": [target], "error": ""}), \
@@ -791,6 +960,7 @@ def test_cdp_launcher_closes_existing_claude_before_launch() -> None:
 
     with mock.patch.object(launcher, "resolve_app_dir", return_value=Path(r"C:\Claude\app")), \
         mock.patch.object(launcher, "close_existing_claude", side_effect=lambda: events.append(("close",))), \
+        mock.patch.object(launcher, "is_port_open", return_value=False), \
         mock.patch.object(launcher, "activate_claude_appx", side_effect=lambda port: events.append(("activate", port))), \
         mock.patch.object(launcher, "launch_claude", side_effect=lambda app_dir, port: events.append(("launch", app_dir, port))), \
         mock.patch.object(launcher, "wait_for_target", return_value={"webSocketDebuggerUrl": "ws://127.0.0.1/devtools/page/1"}), \
@@ -844,6 +1014,11 @@ def test_cdp_session_delete_powershell_wrapper_invokes_launcher() -> None:
     assert "--no-launch" in content
     assert "--diagnose-rows" in content
     assert "--scan-ports" in content
+    assert "--local-delete-bridge" in content
+    assert "LocalDeleteBridge" in content
+    assert "Background" in content
+    assert "Start-Process" in content
+    assert "-WindowStyle Hidden" in content
     assert "--no-close-existing" not in content
     assert "python" in content
     assert "-B" in content
@@ -866,9 +1041,29 @@ def test_interactive_menu_runs_cdp_session_delete_from_install() -> None:
     assert "正在执行 chunk 界面标签、字体和会话增强 patch" in install_block
     assert "正在尝试通过 CDP 追加注入会话增强" in install_block
     assert "运行时注入已随 Claude 关闭失效" in content[uninstall_start:]
-    assert "[5] 注入会话删除按钮（CDP）" not in menu_block
-    assert "请输入 0-4" in content
-    assert "请输入 0-5" not in content
+    assert "Show-ManagementPanel" in menu_block
+    assert "0-5" in content
+
+
+def test_powershell_has_management_diagnostics_and_bridge_scheduler() -> None:
+    content = (ROOT / "claude-zh-cn.ps1").read_text(encoding="utf-8-sig")
+
+    assert "function Show-ManagementPanel" in content
+    assert "function Show-ManagementSnapshot" in content
+    assert "function Get-ChunkPatchSummary" in content
+    assert "function Get-LocalDeleteBridgeProcesses" in content
+    assert "function Start-LocalDeleteBridgeBackground" in content
+    assert "function Install-LocalDeleteBridgeTask" in content
+    assert "function Uninstall-LocalDeleteBridgeTask" in content
+    assert "function Invoke-CdpRowDiagnostics" in content
+    assert "ClaudeZhCnLocalDeleteBridge" in content
+    assert "New-ScheduledTaskTrigger -AtLogOn" in content
+    assert "Register-ScheduledTask" in content
+    assert "Unregister-ScheduledTask" in content
+    assert "-LocalDeleteBridge" in content
+    assert "-Background" in content
+    assert "__CLAUDE_ZH_CN_FONT_PATCH__" in content
+    assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__" in content
 
 
 def test_frontend_resource_key_translations() -> None:
@@ -903,6 +1098,8 @@ def test_frontend_resource_key_translations() -> None:
     assert data["4fHiNliQw2"] == "复制"
     assert data["960gdhmel/"] == "复制配置"
     assert data["uTR9Wyzw/s"] == "复制..."
+    assert "个人插件" in data["/F3BARWVEw"]
+    assert "设置 > 自定义" in data["/F3BARWVEw"]
 
 
 def test_frontend_organization_config_translations() -> None:
@@ -939,7 +1136,7 @@ def test_frontend_organization_config_translations() -> None:
     assert data["HAlOn1ZsuY"] == "名称"
     assert data["KwHBKRwf8M"] == "连接方式"
     assert data["9a9+wwWy4u"] == "Headers"
-    assert data["Wm+KUdH7c0"] == "Headers"
+    assert data["Wm+KUdH7c0"] == "标头"
     assert data["x+MG25XWVf"] == "Headers 辅助脚本"
     assert data["StnRZmM3Xn"] == "绝对路径"
     assert data["uSQ/bLKBIp"] == "工具策略"
@@ -1046,8 +1243,13 @@ def test_frontend_remaining_english_usage_labels_are_translated() -> None:
 
 def test_frontend_text_size_extreme_label_is_translated_as_extra_high() -> None:
     data = json.loads((ROOT / "resources" / "frontend-zh-CN.json").read_text(encoding="utf-8-sig"))
+    statsig = json.loads((ROOT / "resources" / "statsig-zh-CN.json").read_text(encoding="utf-8-sig"))
+
     assert data["kDEj60CmLq"] == "超高"
     assert data["kkjl2vQekD"] == "超高"
+    assert data["9dx43BqWHy"] == "更快"
+    assert data["bTBJTYxUYl"] == "更智能"
+    assert statsig["HoZQmASaw3"] == "超高"
 
 
 def test_frontend_webhook_label_is_translated() -> None:
@@ -1078,9 +1280,27 @@ def test_powershell_has_manual_app_dir_fallback() -> None:
     assert "function Resolve-ClaudeAppPath" in content
     assert "function Resolve-ClaudePackage" in content
     assert "function Set-ClaudePackageManual" in content
+    assert "AnthropicClaude" in content
+    assert "Get-AppxPackage -Name Claude" in content
+    assert "Get-Process -Name claude" in content
+    assert "Get-ChildItem $app -Directory -Filter 'app*'" in content
     assert "请输入 Claude app 目录" in content
     assert "manual:" in content
     assert "[3] 手动指定 Claude app 目录" in content
+
+
+def test_python_install_detection_supports_anthropic_claude() -> None:
+    for relative in [
+        "patch_windowsapps_json_only.py",
+        "patch_chunks_zh_cn.py",
+        "restore_claude_zh_cn_windowsapps.py",
+    ]:
+        content = (ROOT / relative).read_text(encoding="utf-8")
+        assert "AnthropicClaude" in content
+        assert "app*/resources/en-US.json" in content
+        assert "WindowsApps" in content
+        assert "Get-AppxPackage -Name Claude" in content
+        assert "windowsapps_version_key" in content
 
 
 def test_noninteractive_scripts_support_app_dir() -> None:
@@ -1088,8 +1308,10 @@ def test_noninteractive_scripts_support_app_dir() -> None:
     restore = (ROOT / "restore-windowsapps-zh-cn.ps1").read_text(encoding="utf-8-sig")
     assert "param(" in install and "[string]$AppDir" in install
     assert "--app-dir \"$AppDir\"" in install
+    assert "Claude Desktop zh-CN patch" in install
     assert "param(" in restore and "[string]$AppDir" in restore
     assert "--app-dir \"$AppDir\"" in restore
+    assert "Restore Claude Desktop zh-CN patch backup" in restore
 
 
 def test_powershell_status_distinguishes_cleanup_states() -> None:
@@ -1250,6 +1472,41 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
         assert en_us["keep"] == "Keep"
         assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json").exists()
         assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "en-US.json").exists()
+
+
+def test_json_patch_patches_imported_language_menu_chunk() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        assets.mkdir(parents=True)
+        (resources / "en-US.json").write_text("{}", encoding="utf-8")
+        (resources / "ion-dist" / "i18n").mkdir(parents=True)
+
+        index = assets / "index-test.js"
+        index.write_text("function LOt(){return vL.map(t=>({locale:t}))}", encoding="utf-8")
+        chunk = assets / "c34d1f91f-test.js"
+        chunk.write_text(
+            'const aj="en-US",rj=["en-US","de-DE","fr-FR","ko-KR","ja-JP",'
+            '"es-419","es-ES","it-IT","hi-IN","pt-BR","id-ID"];export{rj as aX};',
+            encoding="utf-8",
+        )
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        try:
+            patch_json = load_module("patch_windowsapps_json_only_language_chunk", ROOT / "patch_windowsapps_json_only.py")
+            assert patch_json.patch_whitelist(resources) == "c34d1f91f-test.js"
+            assert chunk.read_text(encoding="utf-8").count('"zh-CN"') == 1
+            assert patch_json.patch_whitelist(resources) == "c34d1f91f-test.js"
+            assert chunk.read_text(encoding="utf-8").count('"zh-CN"') == 1
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
 
 
 def test_json_patch_translates_main_process_debugger_labels() -> None:
@@ -1674,7 +1931,7 @@ def test_assets_tree_injects_session_tools_runtime() -> None:
     assert "claude-zh-cn-session-delete-button" in content
     assert "claude-zh-cn-session-export-button" in content
     assert "claude-zh-cn-conversation-timeline" in content
-    assert 'const VERSION = "29"' in content
+    assert 'const VERSION = "40"' in content
 
 
 def test_chunk_patch_translates_custom_label() -> None:
@@ -2331,6 +2588,55 @@ def test_restore_copy_permission_error_is_retried() -> None:
         assert json.loads((config_dir / "config.json").read_text(encoding="utf-8")) == {"keep": True}
 
 
+def test_sync_i18n_updates_placeholders_and_keeps_technical_values() -> None:
+    sync = load_module("sync_i18n_from_installed_test", ROOT / "tools" / "sync_i18n_from_installed.py")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        resources.mkdir(parents=True)
+        en_path = resources / "en-US.json"
+        local_path = tmp_path / "desktop-zh-CN.json"
+        en_path.write_text(
+            json.dumps(
+                {
+                    "existing": "Open Setup",
+                    "new-action": "Copy organization ID",
+                    "faster": "Faster",
+                    "smarter": "Smarter",
+                    "extra": "Extra",
+                    "technical": "~/Documents/work",
+                }
+            ),
+            encoding="utf-8",
+        )
+        local_path.write_text(json.dumps({"existing": "待翻译：Open Setup"}), encoding="utf-8")
+
+        old_pairs = sync.RESOURCE_PAIRS
+        sync.RESOURCE_PAIRS = {
+            "desktop": {
+                "local": local_path,
+                "installed_en": Path("resources/en-US.json"),
+            }
+        }
+        try:
+            summary = sync.sync_resources(app_dir)
+        finally:
+            sync.RESOURCE_PAIRS = old_pairs
+
+        data = json.loads(local_path.read_text(encoding="utf-8"))
+
+    assert summary["desktop"]["added"] == 5
+    assert summary["desktop"]["updated"] == 1
+    assert data["existing"] == "打开设置向导"
+    assert data["new-action"] == "复制组织 ID"
+    assert data["faster"] == "更快"
+    assert data["smarter"] == "更智能"
+    assert data["extra"] == "超高"
+    assert data["technical"] == "~/Documents/work"
+
+
 def main() -> int:
     tests = [
         test_font_runtime_replaces_legacy_injection,
@@ -2339,6 +2645,7 @@ def main() -> int:
         test_brand_and_model_names_stay_in_english,
         test_desktop_menu_translations,
         test_powershell_has_manual_app_dir_fallback,
+        test_python_install_detection_supports_anthropic_claude,
         test_noninteractive_scripts_support_app_dir,
         test_powershell_status_distinguishes_cleanup_states,
         test_readme_no_longer_describes_dual_locale_modes,
@@ -2350,6 +2657,7 @@ def main() -> int:
         test_restore_main_removes_installed_zh_cn_artifacts,
         test_restore_ignores_legacy_full_patch_when_current_backups_exist,
         test_restore_reverts_stale_chunk_backup_translations,
+        test_sync_i18n_updates_placeholders_and_keeps_technical_values,
     ]
     for test in tests:
         test()

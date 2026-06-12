@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""Restore WindowsApps files from backup, remove zh-CN artifacts, and remove locale setting.
+"""Restore Claude Desktop files from backup, remove zh-CN artifacts, and remove locale setting.
 
 Accepts --app-dir to specify the Claude app directory dynamically.
-If not provided, auto-detects from C:\\Program Files\\WindowsApps.
+If not provided, auto-detects WindowsApps and AppData\\Local\\AnthropicClaude installs.
 
 Restores backed-up files (relative to app\\resources) and removes
 locale=zh-CN from user config.
@@ -14,6 +14,7 @@ import json
 import os
 import shutil
 import stat
+import subprocess
 from pathlib import Path
 
 import patch_chunks_zh_cn
@@ -27,14 +28,73 @@ SKIP_RESTORE_NAMES = {"app.asar"}
 
 
 def find_claude_package() -> Path | None:
-    """Auto-detect Claude package under WindowsApps."""
-    base = Path(r"C:\Program Files\WindowsApps")
-    if not base.exists():
+    """Auto-detect Claude app directory from supported Windows install layouts."""
+    appx = find_appx_claude_package()
+    if appx:
+        return appx
+
+    windows_candidates: list[Path] = []
+    windowsapps = Path(r"C:\Program Files\WindowsApps")
+    if windowsapps.exists():
+        windows_candidates.extend(
+            path.parent.parent
+            for path in windowsapps.glob("Claude_*_x64__*/app/resources/en-US.json")
+            if path.is_file()
+        )
+    if windows_candidates:
+        return sorted(set(windows_candidates), key=lambda path: (windowsapps_version_key(path), str(path)), reverse=True)[0]
+
+    local_candidates: list[Path] = []
+    localappdata = os.environ.get("LOCALAPPDATA")
+    if localappdata:
+        anthropic = Path(localappdata) / "AnthropicClaude"
+        if anthropic.exists():
+            local_resource_files = [
+                anthropic / "resources" / "en-US.json",
+                anthropic / "app" / "resources" / "en-US.json",
+                *anthropic.glob("app*/resources/en-US.json"),
+            ]
+            local_candidates.extend(path.parent.parent for path in local_resource_files if path.is_file())
+
+    if not local_candidates:
         return None
-    candidates = sorted(base.glob("Claude_*_x64__*/app/resources/en-US.json"), reverse=True)
-    if candidates:
-        return candidates[0].parent.parent  # .../app
+    return sorted(set(local_candidates), key=lambda path: (path.stat().st_mtime if path.exists() else 0, str(path)), reverse=True)[0]
+
+
+def find_appx_claude_package() -> Path | None:
+    try:
+        result = subprocess.run(
+            [
+                "powershell",
+                "-NoProfile",
+                "-Command",
+                "$p=Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue | Sort-Object Version -Descending | Select-Object -First 1; if ($p) { Join-Path $p.InstallLocation 'app' }",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=6,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return None
+
+    for line in result.stdout.splitlines():
+        app_dir = Path(line.strip())
+        if (app_dir / "resources" / "en-US.json").is_file():
+            return app_dir
     return None
+
+
+def windowsapps_version_key(app_dir: Path) -> tuple[int, ...]:
+    parts = app_dir.parent.name.split("_")
+    if len(parts) < 2:
+        return ()
+    version: list[int] = []
+    for part in parts[1].split("."):
+        try:
+            version.append(int(part))
+        except ValueError:
+            version.append(0)
+    return tuple(version)
 
 
 def iter_assets_dirs(app_resources: Path) -> list[Path]:

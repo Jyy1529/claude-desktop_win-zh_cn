@@ -25,7 +25,7 @@ if (-not $python) {
 Get-Process -Name claude -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
 Start-Sleep -Seconds 2
 
-Write-Host 'WindowsApps zh-CN patch (JSON + chunk labels + font customizer)'
+Write-Host 'Claude Desktop zh-CN patch (JSON + chunk labels + font customizer)'
 Write-Host ''
 
 Write-Host 'Step 1: JSON resources...'

@@ -6,6 +6,8 @@ import argparse
 import base64
 import json
 import os
+import re
+import shutil
 import socket
 import ssl
 import struct
@@ -27,6 +29,13 @@ import patch_chunks_zh_cn  # noqa: E402
 
 DEFAULT_HOST = "127.0.0.1"
 DEFAULT_PORT = 9229
+LOCAL_DELETE_QUEUE = "__CLAUDE_ZH_CN_LOCAL_SESSION_DELETE_REQUESTS__"
+LOCAL_DELETE_RESULTS = "__CLAUDE_ZH_CN_LOCAL_SESSION_DELETE_RESULTS__"
+LOCAL_DELETE_BRIDGE = "__CLAUDE_ZH_CN_LOCAL_SESSION_DELETE_BRIDGE__"
+LOCAL_SESSION_ID_RE = re.compile(
+    r"^local_[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$",
+    re.IGNORECASE,
+)
 
 
 class CdpError(RuntimeError):
@@ -222,6 +231,239 @@ def read_runtime_health(client: Any) -> Any:
         "returnByValue": True,
     })
     return result.get("result", {}).get("value")
+
+
+def local_session_roots() -> list[Path]:
+    roots: list[Path] = []
+    appdata = os.environ.get("APPDATA")
+    localappdata = os.environ.get("LOCALAPPDATA")
+    for base in [appdata, localappdata]:
+        if not base:
+            continue
+        for profile in ["Claude", "Claude-3p"]:
+            roots.append(Path(base) / profile / "local-agent-mode-sessions")
+    if localappdata:
+        package_root = Path(localappdata) / "Packages" / "Claude_pzs8sxrjxfjjc"
+        roots.extend([
+            package_root / "LocalCache" / "Roaming" / "Claude" / "local-agent-mode-sessions",
+            package_root / "LocalCache" / "Local" / "Claude" / "local-agent-mode-sessions",
+        ])
+
+    seen: set[str] = set()
+    unique: list[Path] = []
+    for root in roots:
+        key = str(root).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        unique.append(root)
+    return unique
+
+
+def normalize_local_session_id(value: Any) -> str:
+    session_id = str(value or "").strip()
+    if LOCAL_SESSION_ID_RE.fullmatch(session_id):
+        return session_id
+    return ""
+
+
+def find_local_session_targets(session_id: str, roots: list[Path] | None = None) -> list[dict[str, str]]:
+    normalized = normalize_local_session_id(session_id)
+    if not normalized:
+        raise CdpError(f"Invalid local session id: {session_id!r}")
+
+    targets: list[dict[str, str]] = []
+    for root in roots or local_session_roots():
+        if not root.exists():
+            continue
+        try:
+            account_dirs = list(root.iterdir())
+        except OSError:
+            continue
+        for account_dir in account_dirs:
+            if not account_dir.is_dir() or account_dir.name == "skills-plugin":
+                continue
+            try:
+                space_dirs = list(account_dir.iterdir())
+            except OSError:
+                continue
+            for space_dir in space_dirs:
+                if not space_dir.is_dir():
+                    continue
+                metadata = space_dir / f"{normalized}.json"
+                data_dir = space_dir / normalized
+                if metadata.exists() or data_dir.exists():
+                    targets.append({
+                        "root": str(root),
+                        "space": str(space_dir),
+                        "metadata": str(metadata),
+                        "dataDir": str(data_dir),
+                    })
+    return targets
+
+
+def quarantine_root() -> Path:
+    base = os.environ.get("LOCALAPPDATA") or os.environ.get("TEMP") or str(ROOT)
+    return Path(base) / "Claude-zh-CN-session-delete-quarantine"
+
+
+def unique_quarantine_dir(session_id: str, base: Path | None = None) -> Path:
+    parent = base or quarantine_root()
+    timestamp = time.strftime("%Y%m%d-%H%M%S")
+    candidate = parent / f"{timestamp}_{session_id}"
+    index = 1
+    while candidate.exists():
+        index += 1
+        candidate = parent / f"{timestamp}_{session_id}_{index}"
+    return candidate
+
+
+def quarantine_local_session(
+    session_id: str,
+    *,
+    dry_run: bool = False,
+    roots: list[Path] | None = None,
+    quarantine_base: Path | None = None,
+) -> dict[str, Any]:
+    normalized = normalize_local_session_id(session_id)
+    if not normalized:
+        return {"ok": False, "sessionId": session_id, "error": "Only local_<uuid> sessions can be deleted locally."}
+
+    targets = find_local_session_targets(normalized, roots=roots)
+    if not targets:
+        return {"ok": False, "sessionId": normalized, "error": "Local session files were not found."}
+
+    existing_targets: list[dict[str, str]] = []
+    for target in targets:
+        existing = {
+            key: value
+            for key, value in target.items()
+            if key in {"metadata", "dataDir"} and Path(value).exists()
+        }
+        if existing:
+            existing_targets.append(existing)
+
+    if dry_run:
+        return {"ok": True, "sessionId": normalized, "dryRun": True, "targets": existing_targets}
+
+    quarantine_dir = unique_quarantine_dir(normalized, quarantine_base)
+    moved: list[dict[str, str]] = []
+    for index, target in enumerate(existing_targets, start=1):
+        target_quarantine = quarantine_dir / f"target-{index}"
+        target_quarantine.mkdir(parents=True, exist_ok=True)
+        for key, source_value in target.items():
+            source = Path(source_value)
+            destination = target_quarantine / source.name
+            shutil.move(str(source), str(destination))
+            moved.append({"kind": key, "from": str(source), "to": str(destination)})
+
+    return {
+        "ok": bool(moved),
+        "sessionId": normalized,
+        "mode": "quarantine",
+        "quarantine": str(quarantine_dir),
+        "moved": moved,
+        "error": "" if moved else "No local session files were moved.",
+    }
+
+
+def local_delete_bridge_source() -> str:
+    return (
+        "(() => {"
+        f"globalThis.{LOCAL_DELETE_QUEUE} = Array.isArray(globalThis.{LOCAL_DELETE_QUEUE}) ? globalThis.{LOCAL_DELETE_QUEUE} : [];"
+        f"globalThis.{LOCAL_DELETE_RESULTS} = globalThis.{LOCAL_DELETE_RESULTS} || {{}};"
+        f"globalThis.{LOCAL_DELETE_BRIDGE} = {{ enabled: true, mode: 'quarantine', startedAt: Date.now() }};"
+        f"return globalThis.{LOCAL_DELETE_BRIDGE};"
+        "})()"
+    )
+
+
+def enable_local_delete_bridge(client: Any) -> Any:
+    source = local_delete_bridge_source()
+    client.call("Page.addScriptToEvaluateOnNewDocument", {"source": source})
+    return client.call("Runtime.evaluate", {
+        "expression": source,
+        "returnByValue": True,
+    }).get("result", {}).get("value")
+
+
+def read_local_delete_requests(client: Any) -> list[dict[str, Any]]:
+    result = client.call("Runtime.evaluate", {
+        "expression": (
+            "(() => {"
+            f"const queue = Array.isArray(globalThis.{LOCAL_DELETE_QUEUE}) ? globalThis.{LOCAL_DELETE_QUEUE} : [];"
+            f"globalThis.{LOCAL_DELETE_QUEUE} = [];"
+            "return queue.filter((item) => item && typeof item === 'object').slice(0, 16);"
+            "})()"
+        ),
+        "returnByValue": True,
+    })
+    value = result.get("result", {}).get("value")
+    return value if isinstance(value, list) else []
+
+
+def write_local_delete_result(client: Any, result: dict[str, Any]) -> None:
+    payload = json.dumps(result, ensure_ascii=False, separators=(",", ":"))
+    client.call("Runtime.evaluate", {
+        "expression": (
+            "(() => {"
+            f"const result = {payload};"
+            f"globalThis.{LOCAL_DELETE_RESULTS} = globalThis.{LOCAL_DELETE_RESULTS} || {{}};"
+            f"globalThis.{LOCAL_DELETE_RESULTS}[String(result.requestId || '')] = result;"
+            "window.dispatchEvent?.(new CustomEvent('claude-zh-cn-local-session-delete-result', { detail: result }));"
+            "return true;"
+            "})()"
+        ),
+        "returnByValue": True,
+    })
+
+
+def handle_local_delete_request(request: dict[str, Any]) -> dict[str, Any]:
+    request_id = str(request.get("requestId") or "")
+    session_id = request.get("sessionId") or request.get("id") or ""
+    result = quarantine_local_session(str(session_id), dry_run=bool(request.get("dryRun")))
+    result["requestId"] = request_id
+    result["title"] = str(request.get("title") or "")[:160]
+    return result
+
+
+def run_local_delete_bridge(
+    client: Any,
+    *,
+    poll_interval: float = 0.5,
+    max_empty_polls: int | None = None,
+) -> None:
+    enable_local_delete_bridge(client)
+    print("Local session delete bridge is running. Keep this window open; press Ctrl+C to stop.")
+    empty_polls = 0
+    try:
+        while True:
+            requests = read_local_delete_requests(client)
+            if not requests:
+                empty_polls += 1
+                if max_empty_polls is not None and empty_polls >= max_empty_polls:
+                    return
+                time.sleep(poll_interval)
+                continue
+
+            empty_polls = 0
+            for request in requests:
+                try:
+                    result = handle_local_delete_request(request)
+                except Exception as exc:  # noqa: BLE001
+                    result = {
+                        "ok": False,
+                        "requestId": str(request.get("requestId") or ""),
+                        "sessionId": str(request.get("sessionId") or request.get("id") or ""),
+                        "error": str(exc),
+                    }
+                write_local_delete_result(client, result)
+                if result.get("ok"):
+                    print(f"Local session quarantined: {result.get('sessionId')} -> {result.get('quarantine')}")
+                else:
+                    print(f"Local session delete failed: {result.get('sessionId')}: {result.get('error')}")
+    except KeyboardInterrupt:
+        print("Local session delete bridge stopped.")
 
 
 def read_debug_port_summary(host: str, port: int) -> dict[str, Any]:
@@ -619,6 +861,11 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--scan-ports", action="store_true", help="Scan nearby CDP ports and print discovered targets")
     parser.add_argument("--scan-port-start", type=int, default=9222)
     parser.add_argument("--scan-port-end", type=int, default=9240)
+    parser.add_argument(
+        "--local-delete-bridge",
+        action="store_true",
+        help="Keep CDP attached and quarantine local_<uuid> sessions requested by the injected UI",
+    )
     return parser.parse_args(argv)
 
 
@@ -671,6 +918,17 @@ def main(argv: list[str] | None = None) -> int:
             health = read_runtime_health(client)
             row_diagnostics = read_recents_row_diagnostics(client) if args.diagnose_rows else None
             candidate_diagnostics = read_candidate_row_diagnostics(client) if args.diagnose_rows else None
+            if args.local_delete_bridge:
+                print("Session delete button injected through CDP.")
+                if isinstance(health, dict):
+                    print(
+                        "Runtime health: "
+                        f"sessionDeletePatch={health.get('sessionDeletePatch')}, "
+                        f"fontPatch={health.get('fontPatch')}, "
+                        f"visibleTextFixPatch={health.get('visibleTextFixPatch')}"
+                    )
+                run_local_delete_bridge(client)
+                return 0
 
         print("Session delete button injected through CDP.")
         if isinstance(health, dict):

@@ -1,4 +1,4 @@
-import { readFileSync } from "node:fs";
+﻿import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -25,8 +25,27 @@ class ClassList {
   constructor(node) {
     this.node = node;
   }
+  values() {
+    return String(this.node.className || "").split(/\s+/).filter(Boolean);
+  }
+  setValues(values) {
+    this.node.className = [...new Set(values)].join(" ");
+  }
+  add(value) {
+    this.setValues([...this.values(), value]);
+  }
+  remove(value) {
+    this.setValues(this.values().filter((item) => item !== value));
+  }
   contains(value) {
     return (` ${this.node.className || ""} `).includes(` ${value} `);
+  }
+  toggle(value, force) {
+    const has = this.contains(value);
+    const shouldAdd = force === undefined ? !has : !!force;
+    if (shouldAdd) this.add(value);
+    else this.remove(value);
+    return shouldAdd;
   }
 }
 
@@ -37,7 +56,11 @@ class Element {
     this.attributes = { ...attrs };
     this.children = [];
     this.parentElement = null;
-    this.style = {};
+    this.style = {
+      setProperty(name, value) {
+        this[name] = String(value);
+      },
+    };
     this.dataset = {};
     this.eventListeners = {};
     this.id = attrs.id || "";
@@ -59,17 +82,18 @@ class Element {
   appendChild(node) {
     node.parentElement = this;
     this.children.push(node);
-    notifyMutation("childList");
+    notifyMutation("childList", "", this, [node], []);
     return node;
   }
 
   remove() {
     if (!this.parentElement) return;
+    const parent = this.parentElement;
     const siblings = this.parentElement.children;
     const index = siblings.indexOf(this);
     if (index >= 0) siblings.splice(index, 1);
     this.parentElement = null;
-    notifyMutation("childList");
+    notifyMutation("childList", "", parent, [], [this]);
   }
 
   setAttribute(name, value) {
@@ -79,7 +103,7 @@ class Element {
       this.className = String(value);
       this.classList = new ClassList(this);
     }
-    notifyMutation("attributes", name);
+    notifyMutation("attributes", name, this, [], []);
   }
 
   getAttribute(name) {
@@ -88,6 +112,16 @@ class Element {
 
   addEventListener(type, handler) {
     (this.eventListeners[type] ||= []).push(handler);
+  }
+
+  removeEventListener(type, handler) {
+    this.eventListeners[type] = (this.eventListeners[type] || []).filter((item) => item !== handler);
+  }
+
+  dispatchEvent(event) {
+    event.target ||= this;
+    for (const handler of this.eventListeners[event.type] || []) handler(event);
+    return true;
   }
 
   matches(selector) {
@@ -189,12 +223,12 @@ function visit(node, fn) {
 }
 
 const mutationObservers = [];
-function notifyMutation(type = "childList", attributeName = "") {
+function notifyMutation(type = "childList", attributeName = "", target = document.body, addedNodes = [], removedNodes = []) {
   for (const observer of mutationObservers) {
     if (type === "attributes" && !observer.options?.attributes) continue;
     if (type === "attributes" && observer.options?.attributeFilter && !observer.options.attributeFilter.includes(attributeName)) continue;
     if (type === "childList" && !observer.options?.childList) continue;
-    observer.cb();
+    observer.cb([{ type, attributeName, target, addedNodes, removedNodes }]);
   }
 }
 
@@ -210,7 +244,7 @@ class MapStorage {
 globalThis.window = globalThis;
 globalThis.globalThis = globalThis;
 globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_DEBUG__ = true;
-globalThis.location = { href: "https://claude.ai/chat/current123", pathname: "/chat/current123", search: "" };
+globalThis.location = { href: "https://claude.ai/desktop", pathname: "/desktop", search: "" };
 globalThis.localStorage = new MapStorage();
 globalThis.sessionStorage = new MapStorage();
 globalThis.NodeFilter = { SHOW_TEXT: 4, FILTER_ACCEPT: 1, FILTER_REJECT: 2 };
@@ -279,9 +313,11 @@ const main = new Element("main", { "data-width": 680, "data-height": 520 });
 const heading = new Element("h1", {}, "Export Fixture");
 const userMessage = new Element("div", { "data-message-author-role": "user", "data-testid": "message", "data-y": 40 }, "用户提出的问题");
 const assistantMessage = new Element("div", { class: "markdown prose", "data-y": 88 }, "Claude 回复内容");
+const humanMessage = new Element("div", { "data-testid": "human-message", "data-y": 136 }, "新版 DOM 用户问题");
 main.appendChild(heading);
 main.appendChild(userMessage);
 main.appendChild(assistantMessage);
+main.appendChild(humanMessage);
 body.appendChild(main);
 
 const aside = new Element("div", { "data-testid": "history-sidebar", "data-width": 320, "data-height": 640 });
@@ -295,9 +331,24 @@ const slashTitle = new Element("div", { "data-y": 194 }, "glos/agent-safety-kit"
 aside.appendChild(slashTitle);
 const filePathTitle = new Element("div", { "data-y": 218 }, "src/app/main.ts");
 aside.appendChild(filePathTitle);
+const nestedParent = new Element("div", { "data-chat-id": "nested123456", "data-y": 244 }, "");
+const nestedChild = new Element("a", { href: "/chat/nested123456" }, "嵌套会话标题");
+nestedParent.appendChild(nestedChild);
+aside.appendChild(nestedParent);
 const project = new Element("button", { "aria-label": "Gateway project", "data-y": 90 }, "Gateway");
 body.appendChild(aside);
 body.appendChild(project);
+
+const loadingAside = new Element("div", { "data-testid": "history-sidebar-loading", "data-width": 320, "data-height": 180, "data-x": 24, "data-y": 720 });
+const modeTabs = new Element("div", { role: "tablist", "data-y": 18, "data-height": 42 }, "");
+const coworkTab = new Element("button", { role: "tab", title: "协作 Ctrl+1", "data-y": 20 }, "协作 Ctrl+1");
+const codeTab = new Element("a", { role: "tab", href: "/code/coding_session_abcdef12", "aria-current": "page", "data-y": 20 }, "代码");
+modeTabs.appendChild(coworkTab);
+modeTabs.appendChild(codeTab);
+loadingAside.appendChild(modeTabs);
+const customNav = new Element("a", { href: "/settings/customize", "aria-label": "自定义", "data-y": 74 }, "自定义");
+loadingAside.appendChild(customNav);
+body.appendChild(loadingAside);
 
 const projectPanel = new Element("div", { "data-testid": "project-sidebar", "data-width": 320, "data-height": 640, "data-x": 360 });
 const progressCard = new Element("div", { "data-y": 24 }, "进度 9 个");
@@ -310,33 +361,51 @@ body.appendChild(projectPanel);
 
 eval(runtime);
 flushTimers();
+nestedChild.dispatchEvent({ type: "pointerover", target: nestedChild });
+body.dispatchEvent({ type: "pointerover", target: nestedChild });
+flushTimers();
 
 const fresh = new Element("a", { href: "/chat/fresh123456", "data-y": 132 }, "新建会话标题");
 aside.appendChild(fresh);
+body.dispatchEvent({ type: "pointerover", target: fresh });
 flushTimers();
-const currentNew = new Element("div", { "aria-current": "page", "data-y": 156 }, "新建聊天");
+const currentNew = new Element("div", { "aria-current": "page", "aria-label": "新建会话 ⌘N", "data-y": 156 }, "+ 新建会话 ⌘N");
 aside.appendChild(currentNew);
+body.dispatchEvent({ type: "pointerover", target: currentNew });
 flushTimers();
 const placeholder = new Element("div", { "data-y": 170 }, "占位会话");
 aside.appendChild(placeholder);
+body.dispatchEvent({ type: "pointerover", target: placeholder });
 flushTimers();
 placeholder.setAttribute("href", "/chat/placeholder123456");
 placeholder.setAttribute("aria-current", "page");
 placeholder.setAttribute("title", "新建会话标题");
 placeholder.setAttribute("data-chat-id", "placeholder123456");
+body.dispatchEvent({ type: "pointerover", target: placeholder });
+flushTimers();
+body.dispatchEvent({ type: "pointerover", target: codeTab });
+flushTimers();
+body.dispatchEvent({ type: "pointerover", target: customNav });
 flushTimers();
 const before = existing.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const projectButtons = project.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const longTitleButtons = longTitle.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const slashTitleButtons = slashTitle.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const filePathTitleButtons = filePathTitle.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
+const nestedParentButtons = nestedParent.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
+const nestedChildButtons = nestedChild.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const after = fresh.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const currentNewButtons = currentNew.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const placeholderButtons = placeholder.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const progressButtons = progressCard.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const filesButtons = filesCard.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const contextButtons = contextCard.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
+const modeTabButtons = modeTabs.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length
+  + codeTab.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length
+  + coworkTab.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
+const customNavButtons = customNav.children.filter((node) => String(node.className || "").includes("claude-zh-cn-session-action-button")).length;
 const state = globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_SCAN_STATE__;
+const timelineCount = document.getElementById("claude-zh-cn-conversation-timeline")?.children.length || 0;
 const debugApi = globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_DEBUG_API__;
 const exportMarkdown = debugApi?.buildConversationMarkdown?.() || "";
 const exportRoles = debugApi?.messageNodes?.().map((node) => debugApi?.messageRole?.(node));
@@ -352,7 +421,10 @@ const debugCounts = {
   longTitleReason: debugApi?.sessionRowRejectReason?.(longTitle),
   slashTitleReason: debugApi?.sessionRowRejectReason?.(slashTitle),
   filePathTitleReason: debugApi?.sessionRowRejectReason?.(filePathTitle),
+  nestedParentReason: debugApi?.sessionRowRejectReason?.(nestedParent),
+  nestedChildReason: debugApi?.sessionRowRejectReason?.(nestedChild),
   placeholderReason: debugApi?.sessionRowRejectReason?.(placeholder),
+  customNavReason: debugApi?.sessionRowRejectReason?.(customNav),
   panels: debugApi?.sessionPanelRoots?.().length,
   sections: debugApi?.recentSectionRoots?.().length,
 };
@@ -360,8 +432,10 @@ const debugCounts = {
 if (before !== 3) throw new Error(`existing session buttons=${before} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (longTitleButtons !== 3) throw new Error(`long title session buttons=${longTitleButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (slashTitleButtons !== 3) throw new Error(`slash title session buttons=${slashTitleButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
+if (nestedParentButtons !== 3) throw new Error(`nested parent session buttons=${nestedParentButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
+if (nestedChildButtons !== 0) throw new Error(`nested child duplicate buttons=${nestedChildButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (after !== 3) throw new Error(`fresh session buttons=${after} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
-if (currentNewButtons !== 3) throw new Error(`current new session buttons=${currentNewButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
+if (currentNewButtons !== 0) throw new Error(`current new session command buttons=${currentNewButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (placeholderButtons !== 3) throw new Error(`placeholder session buttons=${placeholderButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (projectButtons !== 0) throw new Error(`project buttons=${projectButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (filePathTitleButtons !== 0) throw new Error(`file path title buttons=${filePathTitleButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
@@ -369,8 +443,10 @@ if (progressButtons !== 0) throw new Error(`progress buttons=${progressButtons} 
 if (filesButtons !== 0) throw new Error(`files buttons=${filesButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (contextButtons !== 0) throw new Error(`context buttons=${contextButtons} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (!state || state.candidateCount < 6) throw new Error(`bad state ${JSON.stringify(state)}`);
+if (timelineCount < 2) throw new Error(`timeline missing count=${timelineCount} state=${JSON.stringify(state)} debug=${JSON.stringify(debugCounts)}`);
 if (!exportMarkdown.includes("用户提出的问题")) throw new Error(`export missing user markdown=${JSON.stringify(exportMarkdown)} roles=${JSON.stringify(exportRoles)}`);
 if (!exportMarkdown.includes("Claude 回复内容")) throw new Error(`export missing assistant markdown=${JSON.stringify(exportMarkdown)} roles=${JSON.stringify(exportRoles)}`);
+if (!exportMarkdown.includes("新版 DOM 用户问题")) throw new Error(`export missing human markdown=${JSON.stringify(exportMarkdown)} roles=${JSON.stringify(exportRoles)}`);
 if (!exportMarkdown.includes("## 用户") || !exportMarkdown.includes("## Claude")) throw new Error(`export missing roles markdown=${JSON.stringify(exportMarkdown)} roles=${JSON.stringify(exportRoles)}`);
 
-console.log(JSON.stringify({ before, after, currentNewButtons, longTitleButtons, slashTitleButtons, placeholderButtons, projectButtons, filePathTitleButtons, progressButtons, filesButtons, contextButtons, candidateCount: state.candidateCount, exportHasUser: exportMarkdown.includes("用户提出的问题"), exportHasAssistant: exportMarkdown.includes("Claude 回复内容"), exportRoles }));
+console.log(JSON.stringify({ before, after, currentNewButtons, longTitleButtons, slashTitleButtons, nestedParentButtons, nestedChildButtons, placeholderButtons, projectButtons, filePathTitleButtons, progressButtons, filesButtons, contextButtons, modeTabButtons, customNavButtons, timelineCount, candidateCount: state.candidateCount, exportHasUser: exportMarkdown.includes("用户提出的问题"), exportHasAssistant: exportMarkdown.includes("Claude 回复内容"), exportRoles }));

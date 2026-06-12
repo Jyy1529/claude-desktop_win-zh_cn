@@ -3,7 +3,7 @@
   Claude Desktop 中文补丁 - 安装 / 卸载 / 状态检查
 .DESCRIPTION
   交互式菜单，自动检测 Claude 安装路径，执行对应操作。
-  需要以管理员身份运行（因为要写 WindowsApps 目录）。
+  WindowsApps 版需要以管理员身份运行；AppData\Local\AnthropicClaude 版也建议用管理员运行。
   需要 Python 3。
 #>
 
@@ -59,16 +59,47 @@ function Resolve-ClaudeAppPath {
   }
 
   $app = $resolved.TrimEnd('\\/')
-  $res = Join-Path $app 'resources'
-  $desktop = Join-Path $res 'en-US.json'
-  if ((Test-Path $app) -and (Test-Path $desktop)) {
-    return @{ AppDir = $app; ResourcesDir = $res; PackageName = ('manual:' + $app) }
+  $candidateApps = @(
+    $app,
+    (Join-Path $app 'app')
+  )
+  if (Test-Path $app) {
+    $candidateApps += @(Get-ChildItem $app -Directory -Filter 'app*' -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName })
+  }
+
+  foreach ($candidate in $candidateApps) {
+    $res = Join-Path $candidate 'resources'
+    $desktop = Join-Path $res 'en-US.json'
+    if ((Test-Path $candidate) -and (Test-Path $desktop)) {
+      return @{ AppDir = $candidate; ResourcesDir = $res; PackageName = ('manual:' + $candidate) }
+    }
   }
 
   return $null
 }
 
 function Find-ClaudePackage {
+  $running = Get-Process -Name claude -ErrorAction SilentlyContinue |
+    Where-Object { -not [string]::IsNullOrWhiteSpace($_.Path) } |
+    ForEach-Object { Resolve-ClaudeAppPath (Split-Path -Parent $_.Path) } |
+    Where-Object { $_ } |
+    Select-Object -First 1
+  if ($running) {
+    $running['PackageName'] = ('running:' + $running['AppDir'])
+    return $running
+  }
+
+  $appx = Get-AppxPackage -Name Claude -ErrorAction SilentlyContinue |
+    Sort-Object Version -Descending |
+    Select-Object -First 1
+  if ($appx -and $appx.InstallLocation) {
+    $manual = Resolve-ClaudeAppPath (Join-Path $appx.InstallLocation 'app')
+    if ($manual) {
+      $manual['PackageName'] = $appx.PackageFullName
+      return $manual
+    }
+  }
+
   $base = 'C:\Program Files\WindowsApps'
   $dirs = Get-ChildItem $base -Directory -Filter 'Claude_*_x64__*' -ErrorAction SilentlyContinue |
           Sort-Object Name -Descending
@@ -79,6 +110,12 @@ function Find-ClaudePackage {
       return @{ AppDir = $app; ResourcesDir = $res; PackageName = $d.Name }
     }
   }
+
+  $local = Resolve-ClaudeAppPath (Join-Path $env:LOCALAPPDATA 'AnthropicClaude')
+  if ($local) {
+    $local['PackageName'] = ('AnthropicClaude:' + $local['AppDir'])
+    return $local
+  }
   return $null
 }
 
@@ -87,9 +124,10 @@ function Resolve-ClaudePackage {
   if ($detected) { return $detected }
 
   Write-Host ''
-  Write-Warn '未检测到 WindowsApps 安装。'
-  Write-Info '如果你使用的是解压后直接运行的 Claude，请手动输入 Claude app 目录。'
-  Write-Info '示例: D:\Claude\app'
+  Write-Warn '未检测到 Claude 安装。'
+  Write-Info '支持商店版 WindowsApps，也支持网页登录页下载的 AppData\Local\AnthropicClaude。'
+  Write-Info '请手动输入 Claude app 目录或安装根目录。'
+  Write-Info '示例: C:\Users\你的用户名\AppData\Local\AnthropicClaude'
   Write-Host ''
 
   while ($true) {
@@ -101,7 +139,7 @@ function Resolve-ClaudePackage {
     $manual = Resolve-ClaudeAppPath $inputPath
     if ($manual) { return $manual }
 
-    Write-Warn '该目录下未找到 app\resources\en-US.json，请确认输入的是 Claude 的 app 目录。'
+    Write-Warn '该目录下未找到 resources\en-US.json，请确认输入的是 Claude app 目录或安装根目录。'
   }
 }
 
@@ -122,7 +160,8 @@ function Get-AssetsVersionDirs {
 function Set-ClaudePackageManual {
   Write-Host ''
   Write-Info '手动指定 Claude app 目录'
-  Write-Info '示例: D:\Claude\app'
+  Write-Info '示例: C:\Program Files\WindowsApps\Claude_...\app'
+  Write-Info '示例: C:\Users\你的用户名\AppData\Local\AnthropicClaude'
   Write-Host ''
 
   while ($true) {
@@ -299,6 +338,222 @@ function Invoke-SessionDeleteCdp {
   Write-OK 'CDP 注入完成。'
 }
 
+# ── 管理 / 诊断面板 ───────────────────────────────────────
+$bridgeTaskName = 'ClaudeZhCnLocalDeleteBridge'
+
+function Get-ClaudeVersionLabel {
+  $exe = Join-Path $appDir 'claude.exe'
+  if (Test-Path $exe) {
+    try {
+      $info = (Get-Item $exe).VersionInfo
+      if (-not [string]::IsNullOrWhiteSpace($info.ProductVersion)) { return $info.ProductVersion }
+      if (-not [string]::IsNullOrWhiteSpace($info.FileVersion)) { return $info.FileVersion }
+    } catch {}
+  }
+
+  if ($pkgName -match 'Claude_([^_]+)_') {
+    return $Matches[1]
+  }
+
+  return '未知'
+}
+
+function Get-IndexChunkFiles {
+  $assetsRoot = Join-Path $resDir 'ion-dist\assets'
+  if (-not (Test-Path $assetsRoot)) {
+    return @()
+  }
+  return @(Get-ChildItem $assetsRoot -Recurse -File -Filter 'index-*.js' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending)
+}
+
+function Get-ChunkPatchSummary {
+  $indexFiles = Get-IndexChunkFiles
+  $fontMarkers = 0
+  $sessionMarkers = 0
+  $zhWhitelistMarkers = 0
+  foreach ($f in $indexFiles) {
+    try {
+      $content = [System.IO.File]::ReadAllText($f.FullName)
+      if ($content.Contains('__CLAUDE_ZH_CN_FONT_PATCH__')) { $fontMarkers++ }
+      if ($content.Contains('__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__')) { $sessionMarkers++ }
+      if ($content.Contains('"zh-CN"')) { $zhWhitelistMarkers++ }
+    } catch {}
+  }
+
+  $currentChunk = if ($indexFiles.Count -gt 0) { $indexFiles[0].FullName } else { '未找到' }
+  return @{
+    IndexCount = $indexFiles.Count
+    CurrentChunk = $currentChunk
+    FontMarkers = $fontMarkers
+    SessionMarkers = $sessionMarkers
+    ZhWhitelistMarkers = $zhWhitelistMarkers
+  }
+}
+
+function Get-LocalDeleteBridgeProcesses {
+  try {
+    $items = Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
+      Where-Object {
+        $_.CommandLine -like '*claude-cdp-session-delete.ps1*' -and
+        $_.CommandLine -like '*LocalDeleteBridge*'
+      } |
+      Select-Object ProcessId,Name,CommandLine
+    return @($items)
+  } catch {
+    return @()
+  }
+}
+
+function Get-LocalDeleteBridgeTask {
+  try {
+    return Get-ScheduledTask -TaskName $bridgeTaskName -ErrorAction Stop
+  } catch {
+    return $null
+  }
+}
+
+function Start-LocalDeleteBridgeBackground {
+  Write-Title '启动本地删除桥（后台）'
+  $launcher = Join-Path $scriptDir 'claude-cdp-session-delete.ps1'
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $launcher -AppDir "$appDir" -LocalDeleteBridge -Background
+  if ($LASTEXITCODE -eq 0) {
+    Write-OK '后台桥启动命令已提交。'
+  } else {
+    Write-Warn '后台桥启动失败，请在前台模式查看日志。'
+  }
+}
+
+function Install-LocalDeleteBridgeTask {
+  Write-Title '安装登录后台任务'
+  $launcher = Join-Path $scriptDir 'claude-cdp-session-delete.ps1'
+  $arguments = @(
+    '-NoProfile',
+    '-ExecutionPolicy',
+    'Bypass',
+    '-File',
+    ('"{0}"' -f $launcher),
+    '-AppDir',
+    ('"{0}"' -f $appDir),
+    '-LocalDeleteBridge',
+    '-Background'
+  ) -join ' '
+
+  try {
+    $action = New-ScheduledTaskAction -Execute 'powershell.exe' -Argument $arguments
+    $trigger = New-ScheduledTaskTrigger -AtLogOn
+    $settings = New-ScheduledTaskSettingsSet -AllowStartIfOnBatteries -DisallowStartIfOnBatteries:$false -StartWhenAvailable
+    Register-ScheduledTask -TaskName $bridgeTaskName -Action $action -Trigger $trigger -Settings $settings -Description 'Claude zh-CN local session delete bridge' -Force | Out-Null
+    Write-OK "已安装登录任务: $bridgeTaskName"
+  } catch {
+    Write-Warn "安装登录任务失败: $_"
+  }
+}
+
+function Uninstall-LocalDeleteBridgeTask {
+  Write-Title '卸载登录后台任务'
+  try {
+    if (Get-LocalDeleteBridgeTask) {
+      Unregister-ScheduledTask -TaskName $bridgeTaskName -Confirm:$false
+      Write-OK "已卸载登录任务: $bridgeTaskName"
+    } else {
+      Write-Info "未安装登录任务: $bridgeTaskName"
+    }
+  } catch {
+    Write-Warn "卸载登录任务失败: $_"
+  }
+}
+
+function Invoke-CdpRowDiagnostics {
+  Write-Title '运行 CDP 行诊断'
+  $launcher = Join-Path $scriptDir 'claude-cdp-session-delete.ps1'
+  & powershell -NoProfile -ExecutionPolicy Bypass -File $launcher -AppDir "$appDir" -DiagnoseRows -ScanPorts
+  if ($LASTEXITCODE -ne 0) {
+    Write-Warn 'CDP 行诊断失败，请确认 Claude 可以用同一调试端口启动。'
+  }
+}
+
+function Show-ManagementSnapshot {
+  $s = Get-PatchStatus
+  $chunk = Get-ChunkPatchSummary
+  $bridgeProcesses = Get-LocalDeleteBridgeProcesses
+  $bridgeTask = Get-LocalDeleteBridgeTask
+  $version = Get-ClaudeVersionLabel
+
+  Write-Title '管理 / 诊断面板'
+  Write-Info "Claude 版本: $version"
+  Write-Info "Claude 来源: $pkgName"
+  Write-Info "安装路径:  $appDir"
+  Write-Info "资源目录:  $resDir"
+  Write-Host ''
+  Write-Info "中文资源:  $($s.ZhFiles)"
+  Write-Info "语言白名单: $($s.Whitelist)"
+  Write-Info "locale:    $($s.Locale)"
+  Write-Info "备份:      $($s.Backup)"
+  Write-Host ''
+  Write-Info "index chunk 数量: $($chunk.IndexCount)"
+  Write-Info "当前 chunk: $($chunk.CurrentChunk)"
+  Write-Info "字体注入标记: $($chunk.FontMarkers)"
+  Write-Info "会话增强标记: $($chunk.SessionMarkers)"
+  Write-Info "zh-CN 白名单标记: $($chunk.ZhWhitelistMarkers)"
+  Write-Host ''
+  Write-Info "本地删除桥进程: $($bridgeProcesses.Count)"
+  foreach ($p in $bridgeProcesses | Select-Object -First 3) {
+    Write-Info "  pid=$($p.ProcessId) $($p.Name)"
+  }
+  if ($bridgeTask) {
+    Write-OK "登录任务: 已安装 ($bridgeTaskName)"
+  } else {
+    Write-Info "登录任务: 未安装 ($bridgeTaskName)"
+  }
+}
+
+function Show-ManagementPanel {
+  while ($true) {
+    Clear-Host
+    Show-ManagementSnapshot
+    Write-Host ''
+    Write-Host '  ─────────────────────────────────────────────' -ForegroundColor DarkGray
+    Write-Host '  [1] 刷新诊断' -ForegroundColor White
+    Write-Host '  [2] 启动本地删除桥（后台）' -ForegroundColor White
+    Write-Host '  [3] 安装登录任务：后台桥' -ForegroundColor White
+    Write-Host '  [4] 卸载登录任务：后台桥' -ForegroundColor White
+    Write-Host '  [5] 运行 CDP 行诊断' -ForegroundColor White
+    Write-Host '  [0] 返回主菜单' -ForegroundColor White
+    Write-Host ''
+
+    $choice = Read-Host '  请选择'
+    switch ($choice) {
+      '1' {}
+      '2' {
+        Start-LocalDeleteBridgeBackground
+        Write-Host ''
+        Read-Host '按 Enter 返回管理面板'
+      }
+      '3' {
+        Install-LocalDeleteBridgeTask
+        Write-Host ''
+        Read-Host '按 Enter 返回管理面板'
+      }
+      '4' {
+        Uninstall-LocalDeleteBridgeTask
+        Write-Host ''
+        Read-Host '按 Enter 返回管理面板'
+      }
+      '5' {
+        Invoke-CdpRowDiagnostics
+        Write-Host ''
+        Read-Host '按 Enter 返回管理面板'
+      }
+      '0' { return }
+      default {
+        Write-Host ''
+        Write-Warn '无效选择，请输入 0-5。'
+        Start-Sleep -Milliseconds 800
+      }
+    }
+  }
+}
+
 # ── 卸载 ──────────────────────────────────────────────────
 function Invoke-Uninstall {
   Write-Title '卸载中文补丁'
@@ -402,6 +657,7 @@ function Show-Menu {
   }
   Write-Host '  [3] 手动指定 Claude app 目录' -ForegroundColor White
   Write-Host '  [4] 刷新状态' -ForegroundColor White
+  Write-Host '  [5] 管理 / 诊断面板' -ForegroundColor White
   Write-Host '  [0] 退出' -ForegroundColor White
   Write-Host ''
 }
@@ -439,6 +695,9 @@ while ($true) {
     '4' {
       # 刷新状态，直接回到菜单
     }
+    '5' {
+      Show-ManagementPanel
+    }
     '0' {
       Write-Host ''
       Write-Info '再见！'
@@ -447,7 +706,7 @@ while ($true) {
     }
     default {
       Write-Host ''
-      Write-Warn '无效选择，请输入 0-4。'
+      Write-Warn '无效选择，请输入 0-5。'
       Start-Sleep -Milliseconds 800
     }
   }
