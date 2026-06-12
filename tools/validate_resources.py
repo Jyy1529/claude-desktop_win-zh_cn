@@ -11,6 +11,7 @@ RESOURCES = ROOT / "resources"
 FILES = [
     RESOURCES / "desktop-zh-CN.json",
     RESOURCES / "frontend-zh-CN.json",
+    RESOURCES / "dynamic-zh-CN.json",
     RESOURCES / "statsig-zh-CN.json",
 ]
 

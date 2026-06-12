@@ -5,12 +5,14 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import sys
 import subprocess
 import tempfile
 from unittest import mock
 from pathlib import Path
 
 import best_effort_io
+from claude_app_discovery import app_backup_key, resolve_app_dir
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -21,6 +23,7 @@ def load_module(name: str, path: Path):
     if spec is None or spec.loader is None:
         raise AssertionError(f"Cannot load module: {path}")
     module = importlib.util.module_from_spec(spec)
+    sys.modules[name] = module
     spec.loader.exec_module(module)
     return module
 
@@ -938,9 +941,10 @@ def test_frontend_organization_config_translations() -> None:
     assert data["OsIhLl7KpD"] == "链接 URL（可选）"
     assert data["HAlOn1ZsuY"] == "名称"
     assert data["KwHBKRwf8M"] == "连接方式"
-    assert data["9a9+wwWy4u"] == "Headers"
-    assert data["Wm+KUdH7c0"] == "Headers"
-    assert data["x+MG25XWVf"] == "Headers 辅助脚本"
+    assert data["9a9+wwWy4u"] == "请求头"
+    assert data["Wm+KUdH7c0"] == "请求头"
+    assert data["x+MG25XWVf"] == "请求头辅助脚本"
+    assert "请求头" in data["pBgZotXlmX"]
     assert data["StnRZmM3Xn"] == "绝对路径"
     assert data["uSQ/bLKBIp"] == "工具策略"
     assert data["iFhBHMeCjp"] == "工具名称"
@@ -1103,6 +1107,74 @@ def test_powershell_status_distinguishes_cleanup_states() -> None:
     assert "if (-not $s.HasArtifacts -and -not $s.Backup)" in content
 
 
+def test_claude_app_discovery_accepts_app_and_resources_dirs() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        app_dir = Path(tmp) / "Claude" / "app"
+        resources = app_dir / "resources"
+        (resources / "ion-dist" / "assets" / "v1").mkdir(parents=True)
+
+        assert resolve_app_dir(app_dir) == app_dir
+        assert resolve_app_dir(resources) == app_dir
+
+
+def test_resource_sync_fills_new_official_keys_without_writing() -> None:
+    resource_sync = load_module("resource_sync_test", ROOT / "resource_sync.py")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        app_resources = tmp_path / "app" / "resources"
+        app_resources.mkdir(parents=True)
+        en_path = app_resources / "en-US.json"
+        zh_path = tmp_path / "desktop-zh-CN.json"
+        en_path.write_text(json.dumps({"a": "Alpha", "b": "Beta"}), encoding="utf-8")
+        zh_path.write_text(json.dumps({"a": "甲", "stale": "旧"}), encoding="utf-8")
+
+        resource_sync.TARGETS = [
+            resource_sync.ResourceTarget("desktop", Path("en-US.json"), zh_path),
+        ]
+        results = resource_sync.sync_resources(app_resources, write=False)
+        result = results[0]
+
+        assert result.missing == ["b"]
+        assert result.stale == ["stale"]
+        assert result.merged == {"a": "甲", "b": "Beta", "stale": "旧"}
+        assert json.loads(zh_path.read_text(encoding="utf-8")) == {"a": "甲", "stale": "旧"}
+
+
+def test_resource_sync_generates_dynamic_from_statsig_fallback() -> None:
+    resource_sync = load_module("resource_sync_dynamic_test", ROOT / "resource_sync.py")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        app_resources = tmp_path / "app" / "resources"
+        dynamic_en = app_resources / "ion-dist" / "i18n" / "dynamic" / "en-US.json"
+        dynamic_en.parent.mkdir(parents=True)
+        dynamic_en.write_text(
+            json.dumps({"translated": "Auto thinking", "new": "Thinking"}),
+            encoding="utf-8",
+        )
+        statsig_zh = tmp_path / "statsig-zh-CN.json"
+        statsig_zh.write_text(json.dumps({"translated": "自动思考"}), encoding="utf-8")
+
+        resource_sync.TARGETS = [
+            resource_sync.ResourceTarget(
+                "dynamic",
+                Path("ion-dist") / "i18n" / "dynamic" / "en-US.json",
+                None,
+                fallback_zh_paths=(statsig_zh,),
+                copy_when_en_missing=False,
+            ),
+        ]
+        results = resource_sync.sync_resources(app_resources, write=True)
+        missing_app_results = resource_sync.sync_resources(tmp_path / "missing-resources", write=True)
+
+    assert len(results) == 1
+    assert results[0].merged == {"translated": "自动思考", "new": "Thinking"}
+    assert results[0].missing == ["new"]
+    assert results[0].stale == []
+    assert missing_app_results == []
+
+
 def test_readme_no_longer_describes_dual_locale_modes() -> None:
     readme = (ROOT / "README.md").read_text(encoding="utf-8")
 
@@ -1248,8 +1320,83 @@ def test_json_patch_copies_resources_and_patches_locale_whitelist() -> None:
         assert en_us["dKX0bpR+a2"] == "退出"
         assert en_us["oQuOiX24pp"] == "退出"
         assert en_us["keep"] == "Keep"
-        assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json").exists()
-        assert (localappdata / "Claude-zh-CN-official-backup" / "json-only" / "en-US.json").exists()
+        backup_root = patch_json.backup_root_for_app(resources)
+        assert (backup_root / "zh-CN.json").exists()
+        assert (backup_root / "en-US.json").exists()
+
+
+def test_json_patch_adapts_recent_spa_locale_bundle_and_dynamic_i18n() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        localappdata = tmp_path / "localappdata"
+        appdata = tmp_path / "appdata"
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        assets = resources / "ion-dist" / "assets" / "v1"
+        dynamic = resources / "ion-dist" / "i18n" / "dynamic"
+        assets.mkdir(parents=True)
+        dynamic.mkdir(parents=True)
+        (dynamic / "en-US.json").write_text(
+            json.dumps({"2EcGZn58SU": "Auto thinking", "new-key": "Thinking"}),
+            encoding="utf-8",
+        )
+        index = assets / "index-test.js"
+        index.write_text(
+            'const wEt="spa:locale",kEt=NS([(()=>{try{return localStorage.getItem(wEt)}catch{return null}})(),...navigator.languages]);'
+            'function jEt(){const t=dS(e=>e.setLocaleOverride);return e.useEffect(()=>{let e=!1;return AU().then(s=>{if(e||!s?.locale)return;const n=NS([s.locale]);try{localStorage.setItem(wEt,n)}catch{}n!==kEt&&t(n)}),()=>{e=!0}},[t]),null}',
+            encoding="utf-8",
+        )
+        shared = assets / "c71860c77-test.js"
+        shared.write_text(
+            'const qw="en-US",Kw=["en-US","de-DE","fr-FR","ko-KR"];function Vw(e,t=Kw){return t[0]}',
+            encoding="utf-8",
+        )
+        date_chunk = assets / "date-format-test.js"
+        date_chunk.write_text(
+            'const dateLocales=["en-US","en-CA","en-PH","zh-CN"];',
+            encoding="utf-8",
+        )
+
+        old_localappdata = os.environ.get("LOCALAPPDATA")
+        old_appdata = os.environ.get("APPDATA")
+        os.environ["LOCALAPPDATA"] = str(localappdata)
+        os.environ["APPDATA"] = str(appdata)
+        try:
+            patch_json = load_module("patch_windowsapps_json_only_recent_bundle", ROOT / "patch_windowsapps_json_only.py")
+            old_argv = os.sys.argv[:]
+            os.sys.argv = ["patch_windowsapps_json_only.py", "--app-dir", str(app_dir)]
+            try:
+                result = patch_json.main()
+            finally:
+                os.sys.argv = old_argv
+        finally:
+            if old_localappdata is None:
+                os.environ.pop("LOCALAPPDATA", None)
+            else:
+                os.environ["LOCALAPPDATA"] = old_localappdata
+            if old_appdata is None:
+                os.environ.pop("APPDATA", None)
+            else:
+                os.environ["APPDATA"] = old_appdata
+
+        index_content = index.read_text(encoding="utf-8")
+        shared_content = shared.read_text(encoding="utf-8")
+        date_content = date_chunk.read_text(encoding="utf-8")
+        dynamic_zh = json.loads((dynamic / "zh-CN.json").read_text(encoding="utf-8-sig"))
+        backup_root = patch_json.backup_root_for_app(resources)
+        backup_index_exists = (backup_root / "ion-dist" / "assets" / "v1" / "index-test.js").exists()
+        backup_shared_exists = (backup_root / "ion-dist" / "assets" / "v1" / "c71860c77-test.js").exists()
+
+    assert result == 0
+    assert 'NS(["zh-CN",(()=>{try{return localStorage.getItem(wEt)}catch{return null}})(),...navigator.languages])' in index_content
+    assert "localStorage.setItem(wEt,kEt)" in index_content
+    assert 'const n=NS(["zh-CN",s.locale]);' in index_content
+    assert 'Kw=["en-US","de-DE","fr-FR","ko-KR","zh-CN"]' in shared_content
+    assert 'dateLocales=["en-US","en-CA","en-PH"]' in date_content
+    assert dynamic_zh["2EcGZn58SU"] == "自动思考"
+    assert dynamic_zh["new-key"] == "Thinking"
+    assert backup_index_exists
+    assert backup_shared_exists
 
 
 def test_json_patch_translates_main_process_debugger_labels() -> None:
@@ -1530,7 +1677,7 @@ def test_json_patch_backup_copy_permission_error_is_retried() -> None:
             old_argv = os.sys.argv[:]
             os.sys.argv = ["patch_windowsapps_json_only.py", "--app-dir", str(app_dir)]
             original_copy2 = patch_json.shutil.copy2
-            backup_dst = localappdata / "Claude-zh-CN-official-backup" / "json-only" / "zh-CN.json"
+            backup_dst = patch_json.backup_root_for_app(resources) / "zh-CN.json"
             copy_calls = {"count": 0}
 
             def flaky_copy2(src, dst, *args, **kwargs):
@@ -2023,7 +2170,8 @@ def test_chunk_patch_backup_copy_permission_error_is_retried() -> None:
         index = assets / "index-test.js"
         index.write_text("console.log('app');\n", encoding="utf-8")
 
-        backup_dst = localappdata / "Claude-zh-CN-official-backup" / "chunks" / "index-test.js"
+        patch_chunks.BACKUP_ROOT = localappdata / "Claude-zh-CN-official-backup" / "chunks"
+        backup_dst = patch_chunks.backup_root_for_app(assets) / "index-test.js"
         original_copy2 = best_effort_io.shutil.copy2
         copy_calls = {"count": 0}
 
@@ -2034,7 +2182,6 @@ def test_chunk_patch_backup_copy_permission_error_is_retried() -> None:
             return original_copy2(src, dst, *args, **kwargs)
 
         try:
-            patch_chunks.BACKUP_ROOT = backup_dst.parent
             with mock.patch.object(best_effort_io.shutil, "copy2", flaky_copy2):
                 patch_chunks.backup_file(index, assets)
         finally:
@@ -2060,13 +2207,15 @@ def test_restore_restores_json_and_chunk_backups() -> None:
         (assets / "index-test.js").write_text("patched", encoding="utf-8")
 
         backup_base = localappdata / "Claude-zh-CN-official-backup"
-        backup_json = backup_base / "json-only"
-        backup_chunks = backup_base / "chunks"
+        backup_key = app_backup_key(resources)
+        backup_json = backup_base / "json-only" / backup_key
+        backup_chunks = backup_base / "chunks" / backup_key
         backup_json.mkdir(parents=True)
         backup_chunks.mkdir(parents=True)
         (backup_json / "zh-CN.json").write_text('{"original":true}', encoding="utf-8")
         (backup_json / "app.asar").write_text("stale-backed-up-asar", encoding="utf-8")
-        (backup_chunks / "index-test.js").write_text("original", encoding="utf-8")
+        (backup_chunks / "ion-dist" / "assets" / "v1").mkdir(parents=True)
+        (backup_chunks / "ion-dist" / "assets" / "v1" / "index-test.js").write_text("original", encoding="utf-8")
         config_dir = appdata / "Claude-3p"
         config_dir.mkdir(parents=True)
         (config_dir / "config.json").write_text(
@@ -2115,9 +2264,23 @@ def test_restore_main_removes_installed_zh_cn_artifacts() -> None:
         (resources / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
         (resources / "ion-dist" / "i18n").mkdir(parents=True)
         (resources / "ion-dist" / "i18n" / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
+        (resources / "ion-dist" / "i18n" / "dynamic").mkdir(parents=True)
+        (resources / "ion-dist" / "i18n" / "dynamic" / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
         (resources / "ion-dist" / "i18n" / "statsig").mkdir(parents=True)
         (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").write_text('{"patched":true}', encoding="utf-8")
-        (assets / "index-test.js").write_text('const locales=["en-US","fr-FR","zh-CN"];', encoding="utf-8")
+        (assets / "index-test.js").write_text(
+            'const locales=["en-US","fr-FR","zh-CN"];\n'
+            'const wEt="spa:locale",kEt=NS(["zh-CN",(()=>{try{return localStorage.getItem(wEt)}catch{return null}})(),...navigator.languages]);try{localStorage.setItem(wEt,kEt)}catch{}\n'
+            'function jEt(){const n=NS(["zh-CN",s.locale]);try{localStorage.setItem(wEt,n)}catch{}}\n'
+            '// __CLAUDE_ZH_CN_FONT_PATCH_BEGIN__\n'
+            ';(()=>{globalThis.__CLAUDE_ZH_CN_FONT_PATCH__=true;})();\n'
+            '// __CLAUDE_ZH_CN_FONT_PATCH_END__\n',
+            encoding="utf-8",
+        )
+        (assets / "c71860c77-test.js").write_text(
+            'const qw="en-US",Kw=["en-US","de-DE","zh-CN"];function Vw(e,t=Kw){return t[0]}',
+            encoding="utf-8",
+        )
 
         backup_base = localappdata / "Claude-zh-CN-official-backup"
         backup_json = backup_base / "json-only"
@@ -2161,8 +2324,14 @@ def test_restore_main_removes_installed_zh_cn_artifacts() -> None:
         assert result == 0
         assert not (resources / "zh-CN.json").exists()
         assert not (resources / "ion-dist" / "i18n" / "zh-CN.json").exists()
+        assert not (resources / "ion-dist" / "i18n" / "dynamic" / "zh-CN.json").exists()
         assert not (resources / "ion-dist" / "i18n" / "statsig" / "zh-CN.json").exists()
-        assert '"zh-CN"' not in (assets / "index-test.js").read_text(encoding="utf-8")
+        content = (assets / "index-test.js").read_text(encoding="utf-8")
+        shared_content = (assets / "c71860c77-test.js").read_text(encoding="utf-8")
+        assert '"zh-CN"' not in content
+        assert '"zh-CN"' not in shared_content
+        assert "localStorage.setItem(wEt,kEt)" not in content
+        assert "__CLAUDE_ZH_CN_FONT_PATCH_BEGIN__" not in content
         assert json.loads((config_dir / "config.json").read_text(encoding="utf-8")) == {"keep": True}
 
 
@@ -2180,8 +2349,9 @@ def test_restore_ignores_legacy_full_patch_when_current_backups_exist() -> None:
         (assets / "index-test.js").write_text('children:"新建任务"', encoding="utf-8")
 
         backup_base = localappdata / "Claude-zh-CN-official-backup"
-        backup_json = backup_base / "json-only"
-        backup_chunks = backup_base / "chunks"
+        backup_key = app_backup_key(resources)
+        backup_json = backup_base / "json-only" / backup_key
+        backup_chunks = backup_base / "chunks" / backup_key
         backup_json.mkdir(parents=True)
         backup_chunks.mkdir(parents=True)
         (backup_chunks / "index-test.js").write_text('children:"New task"', encoding="utf-8")
@@ -2341,6 +2511,8 @@ def main() -> int:
         test_powershell_has_manual_app_dir_fallback,
         test_noninteractive_scripts_support_app_dir,
         test_powershell_status_distinguishes_cleanup_states,
+        test_claude_app_discovery_accepts_app_and_resources_dirs,
+        test_resource_sync_fills_new_official_keys_without_writing,
         test_readme_no_longer_describes_dual_locale_modes,
         test_restore_removes_font_mirror_and_locale,
         test_chunk_patch_translates_keep_awake_label,

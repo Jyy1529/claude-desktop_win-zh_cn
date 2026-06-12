@@ -16,6 +16,12 @@ import shutil
 import stat
 from pathlib import Path
 
+from claude_app_discovery import (
+    app_backup_key,
+    find_claude_package,
+    resources_dir_for_app,
+    resolve_app_dir,
+)
 
 BACKUP_ROOT = Path(os.environ["LOCALAPPDATA"]) / "Claude-zh-CN-official-backup" / "chunks"
 CONFIG_PATH = Path(os.environ["APPDATA"]) / "Claude-3p" / "config.json"
@@ -147,6 +153,7 @@ svg text, svg tspan {{
     ["Scheduled", "已安排"],
     ["Customize", "自定义"],
     ["Status", "状态"],
+    ["Headers", "请求头"],
     ["Project", "项目"],
     ["Last activity", "最近活动"],
     ["Group by", "分组方式"],
@@ -181,6 +188,7 @@ svg text, svg tspan {{
     ["Create dynamic artifacts that stay up-to-date using live data from your connectors.", "使用来自连接器的实时数据，创建保持更新的动态工件。"],
     ["Create dynamic artifacts that stay up-to-date using live data from your connectors", "使用来自连接器的实时数据，创建保持更新的动态工件"],
     ["Create dynamic artifacts that stay up to date using live data from your connectors.", "使用来自连接器的实时数据，创建保持更新的动态工件。"],
+    ["Headers helper script", "请求头辅助脚本"],
   ]);
 
   const VISIBLE_TEXT_SUBSTRING_FIXES = [
@@ -196,7 +204,7 @@ svg text, svg tspan {{
     const scope = parent.closest("[role='dialog'],[role='menu'],[role='listbox'],[role='navigation'],main,section,nav,aside");
     if (!scope) return false;
     const context = scope.innerText || "";
-    return /(Appearance|外观|颜色模式|Color mode|聊天字体|Chat font|Font|字体|Artifact|Artifacts|Live artifacts|实时 Artifacts|实时工件|dynamic artifacts|动态工件|connectors|连接器|Scheduled|已安排|Customize|自定义)/.test(context);
+    return /(Appearance|外观|颜色模式|Color mode|聊天字体|Chat font|Font|字体|Artifact|Artifacts|Live artifacts|实时 Artifacts|实时工件|dynamic artifacts|动态工件|connectors|连接器|Scheduled|已安排|Customize|自定义|Headers|请求头)/.test(context);
   }}
 
   function fixVisibleText(root = document.body) {{
@@ -2330,16 +2338,6 @@ def session_delete_inject_script() -> str:
     ])
 
 
-def find_claude_package() -> Path | None:
-    base = Path(r"C:\Program Files\WindowsApps")
-    if not base.exists():
-        return None
-    candidates = sorted(base.glob("Claude_*_x64__*/app/resources/en-US.json"), reverse=True)
-    if candidates:
-        return candidates[0].parent.parent
-    return None
-
-
 def find_assets_dir(app_resources: Path) -> Path | None:
     """Locate the active ion-dist/assets version directory."""
     assets_root = app_resources / "ion-dist" / "assets"
@@ -2388,11 +2386,15 @@ def find_patch_targets(assets_dir: Path, pattern: str, replacements: list[tuple[
     return targets
 
 
-def backup_file(path: Path, assets_dir: Path) -> None:
+def backup_root_for_app(base_dir: Path) -> Path:
+    return BACKUP_ROOT / app_backup_key(base_dir)
+
+
+def backup_file(path: Path, base_dir: Path) -> None:
     if not path.exists():
         return
-    rel = path.relative_to(assets_dir)
-    dst = BACKUP_ROOT / rel
+    rel = path.relative_to(base_dir)
+    dst = backup_root_for_app(base_dir) / rel
     dst.parent.mkdir(parents=True, exist_ok=True)
     if not dst.exists():
         copy2_best_effort(path, dst, context="backup file")
@@ -2466,7 +2468,7 @@ def write_text_best_effort(path: Path, text: str, *, context: str) -> bool:
         return False
 
 
-def patch_font_runtime(assets_dir: Path) -> int:
+def patch_font_runtime(assets_dir: Path, backup_base: Path | None = None) -> int:
     """Inject runtime font customizer into the entry bundle."""
     candidates = sorted(assets_dir.glob("index-*.js"))
     if not candidates:
@@ -2478,8 +2480,9 @@ def patch_font_runtime(assets_dir: Path) -> int:
     begin_marker = "// __CLAUDE_ZH_CN_FONT_PATCH_BEGIN__"
     end_marker = "// __CLAUDE_ZH_CN_FONT_PATCH_END__"
     changed = 0
+    backup_base = backup_base or assets_dir
     for path in candidates:
-        backup_file(path, assets_dir)
+        backup_file(path, backup_base)
         content = path.read_text(encoding="utf-8")
         if begin_marker in content and end_marker in content:
             start = content.index(begin_marker)
@@ -2507,7 +2510,7 @@ def patch_font_runtime(assets_dir: Path) -> int:
     return changed
 
 
-def patch_session_delete_runtime(assets_dir: Path) -> int:
+def patch_session_delete_runtime(assets_dir: Path, backup_base: Path | None = None) -> int:
     """Inject hover delete action into the entry bundle."""
     candidates = sorted(assets_dir.glob("index-*.js"))
     if not candidates:
@@ -2519,8 +2522,9 @@ def patch_session_delete_runtime(assets_dir: Path) -> int:
     begin_marker = "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_BEGIN__"
     end_marker = "// __CLAUDE_ZH_CN_SESSION_DELETE_PATCH_END__"
     changed = 0
+    backup_base = backup_base or assets_dir
     for path in candidates:
-        backup_file(path, assets_dir)
+        backup_file(path, backup_base)
         content = path.read_text(encoding="utf-8")
         if begin_marker in content and end_marker in content:
             start = content.index(begin_marker)
@@ -2561,7 +2565,7 @@ def patch_assets_tree(app_resources: Path) -> int:
             files = find_patch_targets(assets_dir, pattern, replacements)
 
             for fpath in files:
-                backup_file(fpath, assets_dir)
+                backup_file(fpath, app_resources)
                 content = fpath.read_text(encoding="utf-8")
                 changed = 0
                 for old, new in replacements:
@@ -2572,11 +2576,11 @@ def patch_assets_tree(app_resources: Path) -> int:
                     total += changed
                     print(f"  {fpath.name}: {changed} replacements")
 
-        font_patches = patch_font_runtime(assets_dir)
+        font_patches = patch_font_runtime(assets_dir, app_resources)
         if font_patches:
             total += font_patches
 
-        session_patches = patch_session_delete_runtime(assets_dir)
+        session_patches = patch_session_delete_runtime(assets_dir, app_resources)
         if session_patches:
             total += session_patches
 
@@ -2740,7 +2744,8 @@ PATCHES["__claude_zh_cn_hardcoded_ui__.js"] = [
     ('"No organization plugins found"', '"\u6ca1\u6709\u7ec4\u7ec7\u63d2\u4ef6"'),
     ('"Add desktop extensions"', '"\u6dfb\u52a0\u684c\u9762\u6269\u5c55"'),
     ('"Link URL (optional)"', '"\u94fe\u63a5 URL\uff08\u53ef\u9009\uff09"'),
-    ('"Headers helper script"', '"Headers \u8f85\u52a9\u811a\u672c"'),
+    ('"Headers"', '"\u8bf7\u6c42\u5934"'),
+    ('"Headers helper script"', '"\u8bf7\u6c42\u5934\u8f85\u52a9\u811a\u672c"'),
     ('"Absolute path"', '"\u7edd\u5bf9\u8def\u5f84"'),
     ('"Tool policy"', '"\u5de5\u5177\u7b56\u7565"'),
     ('"Lock the approval state for specific tools. Unlisted tools stay user-controlled."', '"\u9501\u5b9a\u7279\u5b9a\u5de5\u5177\u7684\u5ba1\u6279\u72b6\u6001\u3002\u672a\u5217\u51fa\u7684\u5de5\u5177\u4ecd\u7531\u7528\u6237\u63a7\u5236\u3002"'),
@@ -2974,23 +2979,25 @@ def main() -> int:
     args = parser.parse_args()
 
     if args.app_dir:
-        app_dir = Path(args.app_dir)
+        app_dir = resolve_app_dir(args.app_dir)
     else:
         app_dir = find_claude_package()
 
     if not app_dir or not app_dir.exists():
         raise SystemExit("Claude app directory not found.")
 
-    assets_root = app_dir / "resources" / "ion-dist" / "assets"
+    app_resources = resources_dir_for_app(app_dir)
+    assets_root = app_resources / "ion-dist" / "assets"
     if not assets_root.exists():
         raise SystemExit(f"Assets root not found: {assets_root}")
 
     BACKUP_ROOT.mkdir(parents=True, exist_ok=True)
-    total = patch_assets_tree(app_dir / "resources")
+    total = patch_assets_tree(app_resources)
     config_mirrored = set_font_config_mirror()
 
     print(f"Done. Total chunk patches: {total}")
     print(f"Font config mirrored: {config_mirrored}")
+    print(f"Backup root: {backup_root_for_app(app_resources)}")
     return 0
 
 
