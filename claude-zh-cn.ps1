@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
   Claude Desktop 中文补丁 - 安装 / 卸载 / 状态检查
 .DESCRIPTION
