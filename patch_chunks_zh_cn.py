@@ -404,8 +404,12 @@ svg text, svg tspan {{
       panel.style.width = "min(520px, calc(100vw - 40px))";
       panel.style.boxShadow = "0 18px 60px rgba(0,0,0,.24)";
       document.body.appendChild(panel);
+      const button = document.getElementById(FAB_ID);
+      if (button) setFloatingFontButtonExpanded(button, true);
     }} else {{
       panel.remove();
+      const button = document.getElementById(FAB_ID);
+      if (button) setFloatingFontButtonExpanded(button, false);
     }}
   }}
 
@@ -437,6 +441,11 @@ svg text, svg tspan {{
     }}, 700);
   }}
 
+  function setFloatingFontButtonExpanded(button, expanded) {{
+    button.style.transform = expanded ? "translateX(0)" : "translateX(calc(100% - 12px))";
+    button.style.opacity = expanded ? "1" : ".62";
+  }}
+
   function mountFloatingButton() {{
     if (!document.body || document.getElementById(FAB_ID)) return;
     const button = document.createElement("button");
@@ -444,8 +453,16 @@ svg text, svg tspan {{
     button.type = "button";
     button.textContent = "字体";
     button.title = "中文字体设置";
-    button.style.cssText = "position:fixed;right:20px;bottom:20px;z-index:2147483647;border:1px solid var(--border-300,#ddd);border-radius:999px;padding:8px 12px;background:var(--bg-000,#fff);color:inherit;box-shadow:0 8px 28px rgba(0,0,0,.18);cursor:pointer;font-size:13px;";
+    button.style.cssText = "position:fixed;right:0;bottom:20px;z-index:2147483647;border:1px solid var(--border-300,#ddd);border-radius:999px;padding:8px 12px;background:var(--bg-000,#fff);color:inherit;box-shadow:0 8px 28px rgba(0,0,0,.18);cursor:pointer;font-size:13px;white-space:nowrap;transform:translateX(calc(100% - 12px));opacity:.62;transition:transform .16s ease,opacity .12s ease,box-shadow .12s ease;";
     button.addEventListener("click", openFloatingPanel);
+    button.addEventListener("mouseenter", () => setFloatingFontButtonExpanded(button, true));
+    button.addEventListener("focus", () => setFloatingFontButtonExpanded(button, true));
+    button.addEventListener("mouseleave", () => {{
+      if (!document.getElementById(FLOATING_PANEL_ID)) setFloatingFontButtonExpanded(button, false);
+    }});
+    button.addEventListener("blur", () => {{
+      if (!document.getElementById(FLOATING_PANEL_ID)) setFloatingFontButtonExpanded(button, false);
+    }});
     document.body.appendChild(button);
     syncFloatingFontButtonVisibility();
   }}
@@ -487,7 +504,7 @@ svg text, svg tspan {{
 def session_delete_inject_script() -> str:
     body = r'''
 ;(()=>{
-  const VERSION = "40";
+  const VERSION = "41";
   try {
   if (globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_VERSION__ === VERSION) return;
   globalThis.__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__ = true;
@@ -907,7 +924,7 @@ def session_delete_inject_script() -> str:
       }
       #${CENTERED_TOGGLE_ID} {
         position: fixed;
-        right: 20px;
+        right: 0;
         bottom: 64px;
         z-index: 2147483100;
         border: 1px solid var(--border-300,#ddd);
@@ -918,6 +935,16 @@ def session_delete_inject_script() -> str:
         box-shadow: 0 8px 28px rgba(0,0,0,.14);
         cursor: default;
         font: 12px/16px system-ui, sans-serif;
+        white-space: nowrap;
+        transform: translateX(calc(100% - 12px));
+        opacity: .62;
+        transition: transform .16s ease, opacity .12s ease, box-shadow .12s ease;
+      }
+      #${CENTERED_TOGGLE_ID}:hover,
+      #${CENTERED_TOGGLE_ID}:focus-visible,
+      #${CENTERED_TOGGLE_ID}[data-centered-dialog-open="true"] {
+        transform: translateX(0);
+        opacity: 1;
       }
       .claude-zh-cn-centered-width-dialog {
         position: fixed;
@@ -2575,6 +2602,9 @@ def session_delete_inject_script() -> str:
     event?.preventDefault();
     event?.stopPropagation();
     document.querySelectorAll(".claude-zh-cn-centered-width-dialog").forEach((node) => node.remove());
+    document.getElementById(CENTERED_TOGGLE_ID)?.removeAttribute("data-centered-dialog-open");
+    const toggleButton = document.getElementById(CENTERED_TOGGLE_ID);
+    toggleButton?.setAttribute("data-centered-dialog-open", "true");
     const dialog = document.createElement("div");
     dialog.className = "claude-zh-cn-centered-width-dialog";
     dialog.innerHTML = `
@@ -2585,7 +2615,10 @@ def session_delete_inject_script() -> str:
         <button type="button" data-centered-save>保存</button>
       </div>
     `;
-    const close = () => dialog.remove();
+    const close = () => {
+      dialog.remove();
+      toggleButton?.removeAttribute("data-centered-dialog-open");
+    };
     const save = () => {
       const input = dialog.querySelector("input");
       const next = Number(String(input?.value || "").replace(/[^\d.]/g, ""));

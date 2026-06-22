@@ -73,6 +73,10 @@ def test_font_runtime_replaces_legacy_injection() -> None:
     assert "const TEXT_FIX_MIN_INTERVAL_MS = 900;" in content
     assert "function runTextFixQueue" in content
     assert "function scheduleFloatingFontButtonVisibility" in content
+    assert "function setFloatingFontButtonExpanded" in content
+    assert "position:fixed;right:0;bottom:20px;" in content
+    assert "translateX(calc(100% - 12px))" in content
+    assert "mouseenter" in content
     assert "fontProviderSettingsCache" in content
     assert "root?.textContent ||" in content
     assert "while (nodes.length < 2000)" not in content
@@ -123,7 +127,7 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_END__" in content
     assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH__" in content
     assert "__CLAUDE_ZH_CN_SESSION_DELETE_PATCH_VERSION__" in content
-    assert 'const VERSION = "40"' in content
+    assert 'const VERSION = "41"' in content
     assert "claude-zh-cn-session-delete-button" in content
     assert "claude-zh-cn-session-export-button" in content
     assert "claude-zh-cn-session-move-button" in content
@@ -145,6 +149,9 @@ def test_session_delete_runtime_is_injected() -> None:
     assert "function shouldShowCenteredLayoutControls" in content
     assert "function showCenteredWidthDialog" in content
     assert "claude-zh-cn-centered-width-dialog" in content
+    assert '#${CENTERED_TOGGLE_ID}[data-centered-dialog-open="true"]' in content
+    assert "transform: translateX(calc(100% - 12px));" in content
+    assert 'toggleButton?.setAttribute("data-centered-dialog-open", "true");' in content
     assert "button.style.display = showControl ? \"\" : \"none\";" in content
     assert "const root = document.querySelector(\"main,[role='main']\") || document.body;" in content
     assert "hasProviderTitle && hasProviderFields" in content
@@ -1931,7 +1938,7 @@ def test_assets_tree_injects_session_tools_runtime() -> None:
     assert "claude-zh-cn-session-delete-button" in content
     assert "claude-zh-cn-session-export-button" in content
     assert "claude-zh-cn-conversation-timeline" in content
-    assert 'const VERSION = "40"' in content
+    assert 'const VERSION = "41"' in content
 
 
 def test_chunk_patch_translates_custom_label() -> None:
