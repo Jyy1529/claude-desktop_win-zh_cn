@@ -1137,7 +1137,7 @@ def test_frontend_organization_config_translations() -> None:
     assert data["KwHBKRwf8M"] == "连接方式"
     assert data["9a9+wwWy4u"] == "Headers"
     assert data["Wm+KUdH7c0"] == "标头"
-    assert data["x+MG25XWVf"] == "Headers 辅助脚本"
+    assert data["x+MG25XWVf"] == "标头辅助脚本"
     assert data["StnRZmM3Xn"] == "绝对路径"
     assert data["uSQ/bLKBIp"] == "工具策略"
     assert data["iFhBHMeCjp"] == "工具名称"
@@ -2637,6 +2637,47 @@ def test_sync_i18n_updates_placeholders_and_keeps_technical_values() -> None:
     assert data["technical"] == "~/Documents/work"
 
 
+def test_sync_i18n_skips_missing_installed_resource() -> None:
+    sync = load_module("sync_i18n_from_installed_missing_en_test", ROOT / "tools" / "sync_i18n_from_installed.py")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        app_dir = tmp_path / "Claude" / "app"
+        resources = app_dir / "resources"
+        resources.mkdir(parents=True)
+        (resources / "en-US.json").write_text(json.dumps({"new-action": "Copy organization ID"}), encoding="utf-8")
+        desktop_path = tmp_path / "desktop-zh-CN.json"
+        statsig_path = tmp_path / "statsig-zh-CN.json"
+        desktop_path.write_text("{}", encoding="utf-8")
+        statsig_path.write_text(json.dumps({"old": "旧值"}), encoding="utf-8")
+
+        old_pairs = sync.RESOURCE_PAIRS
+        sync.RESOURCE_PAIRS = {
+            "desktop": {
+                "local": desktop_path,
+                "installed_en": Path("resources/en-US.json"),
+            },
+            "statsig": {
+                "local": statsig_path,
+                "installed_en": Path("resources/ion-dist/i18n/statsig/en-US.json"),
+            },
+        }
+        try:
+            summary = sync.sync_resources(app_dir)
+        finally:
+            sync.RESOURCE_PAIRS = old_pairs
+
+        desktop_data = json.loads(desktop_path.read_text(encoding="utf-8"))
+        statsig_data = json.loads(statsig_path.read_text(encoding="utf-8"))
+
+    assert summary["desktop"]["added"] == 1
+    assert summary["desktop"]["skipped_missing_en"] == 0
+    assert summary["statsig"]["skipped_missing_en"] == 1
+    assert summary["statsig"]["zh"] == 1
+    assert desktop_data["new-action"] == "复制组织 ID"
+    assert statsig_data == {"old": "旧值"}
+
+
 def main() -> int:
     tests = [
         test_font_runtime_replaces_legacy_injection,
@@ -2658,6 +2699,7 @@ def main() -> int:
         test_restore_ignores_legacy_full_patch_when_current_backups_exist,
         test_restore_reverts_stale_chunk_backup_translations,
         test_sync_i18n_updates_placeholders_and_keeps_technical_values,
+        test_sync_i18n_skips_missing_installed_resource,
     ]
     for test in tests:
         test()

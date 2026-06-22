@@ -23,11 +23,11 @@
 
 ## 当前验证环境
 
-- Claude Desktop：`1.11187.4.0` 已重新同步资源；支持 WindowsApps 包和 `%LOCALAPPDATA%\AnthropicClaude` 安装目录
+- Claude Desktop：`1.14271.0.0` 已重新同步资源；支持 WindowsApps 包和 `%LOCALAPPDATA%\AnthropicClaude` 安装目录
 - Windows：Windows 版 Claude Desktop
 - Python：Python 3.12 已验证；理论上 Python 3.10+ 均可使用
 - PowerShell：Windows PowerShell，安装和恢复需要管理员权限
-- 回归测试：`python -B -m pytest tools\test_patch_behaviors.py -q -p no:cacheprovider`，当前 `64 passed`
+- 回归测试：`python -B -m pytest tools\test_patch_behaviors.py -q -p no:cacheprovider`，当前 `70 passed`
 
 Claude Desktop 更新后仍可尝试安装；资源目录或 JS chunk 结构变化时，需要更新补丁规则。
 

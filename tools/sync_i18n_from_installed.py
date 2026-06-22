@@ -857,6 +857,19 @@ def sync_resources(app_dir: Path, dry_run: bool = False, mark_untranslated: bool
         local_path = spec["local"]
         installed_en = installed_resources.parent / spec["installed_en"]
         local_data = load_json(local_path)
+        if not installed_en.exists():
+            summary[name] = {
+                "en": 0,
+                "zh": len(local_data),
+                "added": 0,
+                "updated": 0,
+                "reused": 0,
+                "untranslated": 0,
+                "missing_after": 0,
+                "extra": len(local_data),
+                "skipped_missing_en": 1,
+            }
+            continue
         en_data = load_json(installed_en)
         added = 0
         reused = 0
@@ -892,6 +905,7 @@ def sync_resources(app_dir: Path, dry_run: bool = False, mark_untranslated: bool
             "untranslated": untranslated,
             "missing_after": len(set(en_data) - set(local_data)),
             "extra": len(set(local_data) - set(en_data)),
+            "skipped_missing_en": 0,
         }
     return summary
 
@@ -910,10 +924,13 @@ def main() -> int:
     summary = sync_resources(app_dir, dry_run=args.dry_run, mark_untranslated=args.mark_untranslated)
     print(f"Claude app: {app_dir}")
     for name, info in summary.items():
+        skipped = ""
+        if info.get("skipped_missing_en"):
+            skipped = f" skipped_missing_en={info['skipped_missing_en']}"
         print(
             f"{name}: en={info['en']} zh={info['zh']} "
             f"added={info['added']} updated={info['updated']} reused={info['reused']} untranslated={info['untranslated']} "
-            f"missing_after={info['missing_after']} extra={info['extra']}"
+            f"missing_after={info['missing_after']} extra={info['extra']}{skipped}"
         )
     return 0
 
