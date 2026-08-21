@@ -631,8 +631,8 @@ def session_delete_inject_script() -> str:
   const MAX_RECENTS_FALLBACK_VISITS = 160;
   const SCAN_DELAY_MS = 5200;
   const SCAN_MIN_INTERVAL_MS = 24000;
-  const TIMELINE_DELAY_MS = 6200;
-  const TIMELINE_MIN_INTERVAL_MS = 30000;
+  const TIMELINE_DELAY_MS = 2000;
+  const TIMELINE_MIN_INTERVAL_MS = 4000;
   const STARTUP_SCAN_DELAY_MS = 4200;
   const STARTUP_TIMELINE_DELAY_MS = 1800;
   const POINTER_ATTACH_DELAY_MS = 70;
@@ -2586,9 +2586,26 @@ def session_delete_inject_script() -> str:
       summaryNode.textContent = summary;
       button.appendChild(summaryNode);
       button.title = summary;
+      const questionId = node.id;
       button.addEventListener("click", (event) => {
         stopButtonEvent(event);
-        node.scrollIntoView({ block: "center", behavior: "smooth" });
+        // Look the node up by id at click time. The captured `node` reference goes
+        // stale when the SPA unmounts the old conversation, and scrollIntoView on a
+        // detached node silently does nothing.
+        const live = (questionId && document.getElementById(questionId)) || null;
+        if (live && live.isConnected) {
+          live.scrollIntoView({ block: "center", behavior: "smooth" });
+          return;
+        }
+        if (node.isConnected) {
+          node.scrollIntoView({ block: "center", behavior: "smooth" });
+          return;
+        }
+        // Both are detached: the conversation changed under us. Rebuild now instead
+        // of waiting out TIMELINE_MIN_INTERVAL_MS.
+        lastTimelineSignature = "";
+        lastTimelineRunAt = 0;
+        scheduleTimelineRender(0);
       }, true);
       buttons.push(button);
     });
@@ -2655,8 +2672,15 @@ def session_delete_inject_script() -> str:
     const now = performance?.now?.() || Date.now();
     const timeline = document.getElementById(TIMELINE_ID);
     const hasVisibleTimeline = !!(timeline && timeline.children.length);
-    if (lastTimelineRunAt && hasVisibleTimeline) delay = Math.max(delay, TIMELINE_MIN_INTERVAL_MS - (now - lastTimelineRunAt));
+    // delay === 0 is an explicit "rebuild now" request (stale nodes detected on
+    // click). Do not apply the min-interval throttle to it.
+    const immediate = delay === 0;
+    if (!immediate && lastTimelineRunAt && hasVisibleTimeline) delay = Math.max(delay, TIMELINE_MIN_INTERVAL_MS - (now - lastTimelineRunAt));
     const dueAt = now + delay;
+    if (timelineTimer && immediate) {
+      clearTimeout(timelineTimer);
+      timelineTimer = 0;
+    }
     if (timelineTimer) {
       if (!hasVisibleTimeline && dueAt < timelineTimerDueAt - 50) {
         clearTimeout(timelineTimer);
